@@ -1,0 +1,36 @@
+# Cấu hình cho từng module ML — cơ chế 3-tier fallback (Mục 2.1)
+# tier_1: checkpoint fine-tuned (models/*), tier_2: pretrained zero/few-shot, tier_3: rule-based
+
+ner:
+  tier1_checkpoint: "models/ner_phobert"
+  tier2_model: "xlm-roberta-base"
+  labels: ["PACKAGE_NAME", "VALUE", "FUNDING", "METHOD", "CONTRACT_TYPE", "DURATION", "INVESTOR", "LOCATION"]
+
+classifier:
+  tier1_checkpoint: "models/classifier_phobert"
+  tier2_model: "xlm-roberta-base"
+  labels: ["hang_hoa", "xay_lap", "tu_van", "phi_tu_van", "hon_hop"]
+
+retriever:
+  tier1_checkpoint: "models/retriever_bi_encoder"
+  bi_encoder_base: "bkai-foundation-models/vietnamese-bi-encoder"
+  cross_encoder_base: "xlm-roberta-base"
+  index_path: "data/processed/faiss.index"
+  chunk_max_tokens: 512
+  chunk_overlap_tokens: 64
+  top_k_retrieve: 50
+  top_k_rerank: 5
+
+generator:
+  tier1_checkpoint: "models/generator_vit5"
+  tier1_base: "VietAI/vit5-base"
+  tier2_model: "Qwen2.5-7B-Instruct"
+  tier2_api_key_env: "AUTOTENDER_LLM_API_KEY"
+  sections_supported: ["chuong_III", "chuong_V"]
+
+compliance:
+  tier1_checkpoint: "models/compliance_xlmr"
+  tier2_model: "xlm-roberta-base"
+  rule_codes: ["R1", "R2", "R3", "R4", "OK"]
+  brand_dictionary: ["Cisco", "Dell", "HP", "Hewlett Packard", "Samsung", "IBM", "Lenovo", "Intel", "Microsoft", "Apple", "Huawei", "Sony", "Canon", "Epson", "Fujitsu", "Oracle", "SAP"]
+  revenue_ratio_threshold: 3.0

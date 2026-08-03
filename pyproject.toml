@@ -1,0 +1,16 @@
+[project]
+name = "autotender-vn"
+version = "0.1.0"
+description = "Deep Learning tự động soạn thảo Hồ sơ mời thầu (E-HSMT) tại Việt Nam"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

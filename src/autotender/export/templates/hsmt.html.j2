@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>{{ doc.package.package_name }}</title>
+<style>{{ css }}</style>
+</head>
+<body>
+
+{% if doc.package.package_name and show_watermark %}
+<div class="watermark">DỰ THẢO</div>
+{% endif %}
+
+<section class="cover-page">
+  <h1>Hồ sơ mời thầu</h1>
+  <p class="package-name">{{ doc.package.package_name }}</p>
+  <p>Chủ đầu tư: {{ doc.package.investor }}</p>
+  <p>Số hiệu tài liệu: {{ doc.doc_id }}</p>
+  <p>Ngày phát hành: {{ generated_date }}</p>
+
+  <div class="draft-warning">
+    Dự thảo do hệ thống hỗ trợ tạo lập — bắt buộc thẩm định và phê duyệt theo quy định
+    pháp luật trước khi phát hành.
+  </div>
+</section>
+
+{% if not doc.is_fully_approved %}
+<section class="unapproved-warning">
+  <h2>⚠️ Cảnh báo: tài liệu còn mục chưa phê duyệt</h2>
+  <p>{{ approved_count }}/{{ total_count }} mục đã được phê duyệt. Các mục sau CHƯA phê duyệt:</p>
+  <ul>
+    {% for s in doc.sections if s.status != "approved" %}
+    <li>{{ s.section_id }} — {{ s.title }} (trạng thái: {{ s.status }})</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="toc">
+  <h2>Mục lục</h2>
+  <ol>
+    {% for s in doc.sections %}
+    <li>{{ s.section_id }} — {{ s.title }}</li>
+    {% endfor %}
+  </ol>
+</section>
+
+{% for chapter, sections in chapters.items() %}
+<section class="chapter">
+  <h2>{{ chapter_titles.get(chapter, chapter) }}</h2>
+  {% for s in sections %}
+  <div class="section">
+    <h3>{{ s.section_id }}. {{ s.title }}</h3>
+    <div class="content">{{ s.current_text }}</div>
+  </div>
+  {% endfor %}
+</section>
+{% endfor %}
+
+<section class="appendix">
+  <h2>Phụ lục — Nhật ký phê duyệt</h2>
+  <table>
+    <thead>
+      <tr><th>Mục</th><th>Tiêu đề</th><th>Trạng thái</th><th>Người phê duyệt</th><th>Thời điểm</th></tr>
+    </thead>
+    <tbody>
+      {% for row in approval_log %}
+      <tr>
+        <td>{{ row.section_id }}</td>
+        <td>{{ row.title }}</td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.approved_by or "-" }}</td>
+        <td>{{ row.approved_at or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>

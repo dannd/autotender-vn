@@ -1,0 +1,14 @@
+DejaVu Sans (DejaVuSans.ttf, DejaVuSans-Bold.ttf)
+
+Nguồn: bundled cùng Matplotlib (`matplotlib/mpl-data/fonts/ttf/`), dựa trên Bitstream
+Vera Fonts, được cấp phép theo giấy phép Bitstream Vera License kết hợp thỏa thuận
+"Arev Fonts Copyright" — cho phép tự do sử dụng, sửa đổi và phân phối lại, kể cả trong
+phần mềm thương mại, miễn giữ nguyên thông báo bản quyền này.
+
+Toàn văn giấy phép: https://dejavu-fonts.github.io/License.html
+
+Lý do dùng font này thay vì Times New Roman/Tinos nêu trong SPEC Mục 8: đây là font
+mã nguồn mở duy nhất có sẵn trong môi trường phát triển tại thời điểm thực hiện đồ án,
+hỗ trợ đầy đủ dấu tiếng Việt (Latin Extended Additional). Khi triển khai thực tế, thay
+bằng font "Tinos-Regular.ttf" (metric-compatible với Times New Roman, cũng theo giấy
+phép SIL Open Font License) theo đúng khuyến nghị của SPEC.

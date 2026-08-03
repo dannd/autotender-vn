@@ -1,0 +1,13 @@
+# Cấu hình thu thập dữ liệu (Mục 2.4 và Mục 6/M0)
+crawler:
+  base_url: "https://muasamcong.mpi.gov.vn"
+  # Khai báo rõ mục đích nghiên cứu trong User-Agent (Mục 2.4)
+  user_agent: "AutoTenderVN-ResearchBot/0.1 (+mailto:nguyendan1987@gmail.com; muc dich: do an Deep Learning, hoc thuat, phi thuong mai)"
+  min_request_interval_seconds: 2.0
+  respect_robots_txt: true
+  timeout_seconds: 30
+  max_retries: 3
+  cache_dir: "data/raw"
+  state_file: "data/raw/_state.json"
+  default_source: "local"   # local | api | browser — LocalSampleSource luôn là fallback cuối
+  samples_dir: "data/samples"

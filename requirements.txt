@@ -1,0 +1,49 @@
+# AutoTender-VN — dependencies
+# Python 3.10+
+
+# --- GUI ---
+streamlit>=1.32
+
+# --- Crawler ---
+httpx>=0.27
+selectolax>=0.3
+playwright>=1.42
+
+# --- PDF/DOCX ingestion ---
+pymupdf>=1.24
+python-docx>=1.1
+
+# --- OCR (optional, Tier fallback for scanned PDFs) ---
+paddleocr>=2.7; platform_system != "Darwin"
+paddlepaddle>=2.6; platform_system != "Darwin"
+
+# --- NLP / ML ---
+torch>=2.2
+transformers>=4.39
+sentence-transformers>=2.5
+seqeval>=1.2
+scikit-learn>=1.4
+
+# --- Vector store ---
+faiss-cpu>=1.8
+
+# --- Templating / PDF export ---
+jinja2>=3.1
+weasyprint>=61.0
+reportlab>=4.1
+
+# --- Storage / config ---
+pydantic>=2.6
+pydantic-settings>=2.2
+pyyaml>=6.0
+
+# --- Data / GUI tables & charts ---
+pandas>=2.2
+matplotlib>=3.8
+
+# --- Utilities ---
+python-dateutil>=2.9
+
+# --- Test ---
+pytest>=8.0
+pytest-cov>=5.0

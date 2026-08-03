@@ -1,0 +1,120 @@
+/* Thể thức văn bản hành chính Việt Nam (Mục 8 SPEC — đối chiếu Nghị định 30/2020/NĐ-CP) */
+
+@page {
+  size: A4;
+  margin-top: 20mm;
+  margin-bottom: 20mm;
+  margin-left: 30mm;
+  margin-right: 20mm;
+  @bottom-center {
+    content: counter(page) "/" counter(pages);
+  }
+}
+
+body {
+  font-family: "DejaVu Sans", "Times New Roman", "Tinos", serif;
+  font-size: 13pt;
+  line-height: 1.5;
+  color: #000;
+}
+
+.cover-page {
+  page-break-after: always;
+  text-align: center;
+  padding-top: 60mm;
+}
+
+.cover-page h1 {
+  font-size: 18pt;
+  text-transform: uppercase;
+  margin-bottom: 4mm;
+}
+
+.cover-page .package-name {
+  font-size: 15pt;
+  font-weight: bold;
+  margin: 8mm 0;
+}
+
+.draft-warning {
+  margin-top: 20mm;
+  padding: 4mm;
+  border: 1.5pt solid #b00;
+  color: #b00;
+  font-weight: bold;
+  font-size: 11pt;
+}
+
+.watermark {
+  position: fixed;
+  top: 40%;
+  left: 15%;
+  font-size: 72pt;
+  color: rgba(200, 0, 0, 0.15);
+  transform: rotate(-30deg);
+  z-index: -1;
+}
+
+.toc {
+  page-break-after: always;
+}
+
+.toc h2 {
+  text-align: center;
+}
+
+.toc ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+.toc li {
+  margin-bottom: 2mm;
+}
+
+.chapter {
+  page-break-before: always;
+}
+
+.chapter h2 {
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.section {
+  margin-bottom: 6mm;
+}
+
+.section h3 {
+  font-size: 13pt;
+  font-weight: bold;
+}
+
+.section .content {
+  white-space: pre-wrap;
+  text-align: justify;
+}
+
+.unapproved-warning {
+  page-break-after: always;
+  border: 1.5pt solid #b00;
+  padding: 4mm;
+  color: #b00;
+}
+
+.appendix {
+  page-break-before: always;
+}
+
+.appendix table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4mm;
+}
+
+.appendix th, .appendix td {
+  border: 0.5pt solid #333;
+  padding: 2mm;
+  font-size: 11pt;
+  text-align: left;
+}
