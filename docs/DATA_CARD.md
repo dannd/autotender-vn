@@ -5,6 +5,7 @@
 | Bộ dữ liệu | Vị trí | Loại | Kích thước | Cách tạo |
 |---|---|---|---|---|
 | Bản ghi TBMT mẫu | `data/samples/tender_notices.jsonl` | Tổng hợp (synthetic) | 20 bản ghi | `scripts/build_samples.py` |
+| Bản ghi TBMT thật (pilot) | `data/samples/real_pilot_sample.jsonl` | **Thật**, thu thập thủ công | 12 bản ghi | Xem Mục 8 bên dưới |
 | Corpus mẫu HSMT + nguyên tắc pháp lý | `data/samples/corpus/*.md` | Tổng hợp/minh hoạ | 3 file, 13 chunk | Biên soạn thủ công |
 | Dataset NER (distant supervision) | `data/processed/ner_dataset.jsonl` | Nhãn tự động (silver) | 20 bản ghi | `scripts/build_dataset.py` |
 | Dataset Classifier | `data/processed/classifier_dataset.jsonl` | Nhãn tự động | 20 bản ghi | `scripts/build_dataset.py` |
@@ -103,3 +104,44 @@ nhận cho từng cờ). Đây là cơ chế để, khi hệ thống được d�
 hơn dữ liệu tổng hợp ở trên sẽ tích luỹ dần và dùng để huấn luyện lại M5/M6 — xem
 `notebooks/03_train_retriever.ipynb` và `notebooks/04_train_generator.ipynb` để biết cách
 dữ liệu phản hồi này được đưa vào vòng huấn luyện tiếp theo.
+
+---
+
+## 8. Nỗ lực crawl dữ liệu thật lần 2 — phát hiện mới và giới hạn
+
+Sau lần điều tra đầu (Mục 2), nhóm thử lại với trang tra cứu đầy đủ (không phải widget tìm
+kiếm nhanh ở trang chủ) và có 3 phát hiện quan trọng:
+
+**1. Tìm ra cơ chế xác thực thật của endpoint.** Trang tra cứu đầy đủ tại
+`/web/guest/contractor-selection?render=search` gọi
+`POST /o/egp-portal-contractor-selection-v2/services/smart/search?token=<chuỗi rất dài>`.
+Tham số `token` là **CSRF token động do Liferay sinh ra khi render trang**, thay đổi mỗi
+lần — đây chính là lý do mọi lần gọi POST trực tiếp trước đó (kể cả kèm cookie phiên hợp
+lệ) đều nhận HTTP 400: thiếu tham số bắt buộc này, không phải do sai cấu trúc body.
+
+**2. Xác nhận có 624.050 bản ghi TBMT thật đang có trên hệ thống** (số liệu hiển thị trực
+tiếp trên UI khi tìm kiếm không lọc). Đã lấy thành công **12 bản ghi thật đầy đủ** qua thao
+tác trực tiếp trên trình duyệt tương tác (bấm nút "Tìm kiếm" → đọc response mạng), lưu tại
+`data/samples/real_pilot_sample.jsonl`. Các bản ghi này là **dữ liệu công khai thật** (thông
+báo mời thầu, không chứa thông tin cá nhân), khác với `tender_notices.jsonl` (tổng hợp).
+
+**3. Rào cản cho việc tự động hoá toàn bộ (quan trọng nhất):**
+- Chạy Playwright **độc lập** (headless, không qua kênh trình duyệt tương tác) từ môi
+  trường sandbox/cloud của phiên làm việc này bị **treo vô thời hạn ở bước điều hướng**
+  (`page.goto` timeout), kể cả khi thử `headless=False` hoặc `channel="msedge"` — trong khi
+  `httpx` (không giả lập trình duyệt) vẫn gọi được `robots.txt` và endpoint bình thường
+  (nhận 400 nhanh, không bị treo). Điều này gợi ý WAF của trang chặn/phát hiện dựa trên dấu
+  hiệu trình duyệt tự động hoá (TLS/HTTP fingerprint), không phải chặn IP hay chặn request
+  đơn thuần.
+- Khi thao tác qua kênh trình duyệt tương tác (không phải script), lấy được dữ liệu thật
+  bình thường — NHƯNG sau vài lần bấm phân trang liên tiếp (dùng `element.click()` qua
+  JavaScript, tốc độ nhanh hơn thao tác người dùng thật), toàn bộ phiên bị từ chối kể cả
+  điều hướng thông thường tới trang chủ. Điều này cho thấy hệ thống cũng giám sát **tốc độ
+  và kiểu tương tác trong phiên**, không chỉ tần suất request.
+
+**Kết luận cho việc triển khai thật:** `MSCBrowserSource` (`crawler/sources.py`) đã được cập
+nhật để nhắm đúng trang tra cứu và tự động phân trang, nhưng khả năng chạy thành công phụ
+thuộc mạnh vào **hạ tầng mạng nơi chạy** (mạng dân dụng có khả năng qua được WAF tốt hơn
+mạng datacenter/cloud) và **phải giữ tốc độ thao tác chậm, giống người dùng thật** — xem
+cảnh báo chi tiết trong docstring của `MSCBrowserSource`. Không nên tăng tốc độ phân trang
+để lấy nhiều dữ liệu nhanh hơn — rủi ro bị chặn hoàn toàn cao hơn lợi ích.

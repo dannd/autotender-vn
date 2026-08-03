@@ -38,18 +38,22 @@ class TenderSource(ABC):
 class MSCApiSource(TenderSource):
     """Gọi API JSON nội bộ thật của muasamcong.mpi.gov.vn.
 
-    Endpoint đã xác định qua DevTools Network: `POST /o/egp-portal-home/services/smart/search`
-    (xem `autotender.crawler.parser` để biết shape response đã quan sát được).
+    CẬP NHẬT ĐIỀU TRA (xem docs/DATA_CARD.md mục 8 để biết chi tiết đầy đủ): có ít nhất
+    2 endpoint `smart/search` khác nhau tuỳ portlet:
+    - `POST /o/egp-portal-home/services/smart/search` (widget tìm kiếm nhanh ở trang chủ)
+    - `POST /o/egp-portal-contractor-selection-v2/services/smart/search?token=<...>` (trang
+      tra cứu đầy đủ tại `/web/guest/contractor-selection?render=search`, có phân trang thật)
 
-    GIỚI HẠN ĐÃ BIẾT (ghi rõ trong báo cáo — Mục 14 của SPEC):
-    cổng portal (Liferay) trả về HTTP 400 cho các payload JSON được thử một cách hợp lý
-    (page/size, pageable, criteria, filter...) kể cả khi gọi cùng-origin có cookie phiên
-    hợp lệ từ trình duyệt thật — hàm ý endpoint yêu cầu một hợp đồng payload nội bộ chưa
-    xác định được trong thời gian cho phép của đồ án 7 ngày. Class này vẫn implement đầy đủ
-    cơ chế gọi + parse để sẵn sàng dùng ngay khi payload đúng được xác định (ví dụ: người
-    dùng tự bắt gói tin qua DevTools và điền vào `payload_template`), nhưng KHÔNG được coi
-    là nguồn dữ liệu tin cậy cho pipeline — mọi lỗi sẽ raise `TenderSourceError` để
-    orchestrator tự động rơi xuống `MSCBrowserSource` rồi `LocalSampleSource`.
+    Cả hai đều yêu cầu một tham số `token` trên query string — đây là CSRF token động do
+    Liferay sinh ra và nhúng vào từng lần render trang, KHÔNG PHẢI cố định, và KHÔNG THỂ suy
+    ra được chỉ từ việc đọc mã nguồn client hay đoán payload. Đây là lý do mọi lần gọi POST
+    trực tiếp (không qua trình duyệt thật) đều nhận HTTP 400 dù có cookie phiên hợp lệ.
+
+    GIỚI HẠN ĐÃ BIẾT: vì token phải lấy từ một trang đã render (cần chạy JS thật), class này
+    KHÔNG THỂ tự lấy token nếu chỉ dùng httpx thuần — bắt buộc phải qua `MSCBrowserSource`
+    (Playwright) để có phiên trình duyệt thật sinh ra token hợp lệ. `MSCApiSource` vẫn giữ lại
+    làm nơi implement parser/cache dùng chung, nhưng luôn raise `TenderSourceError` trong thực
+    tế nếu không được cấp `payload_template` kèm token hợp lệ (lấy thủ công qua DevTools).
     """
 
     name = "api"
@@ -90,14 +94,31 @@ class MSCApiSource(TenderSource):
 
 
 class MSCBrowserSource(TenderSource):
-    """Fallback dùng Playwright headless để render SPA khi API trực tiếp không gọi được.
+    """Fallback dùng Playwright để render trang tra cứu thật khi gọi API trực tiếp không được.
 
-    Chiến lược: mở trang tìm kiếm thật, để JS nội bộ của trang tự gọi API `smart/search`
-    bằng session cookie hợp lệ của chính nó, sau đó bắt lại response qua
-    `page.on("response")` — tận dụng đúng cơ chế xác thực của trang thay vì đoán payload.
+    Chiến lược: mở trang tra cứu đầy đủ (`/web/guest/contractor-selection?render=search`),
+    bấm nút "Tìm kiếm" để trang tự gọi API `smart/search` kèm CSRF `token` động do chính nó
+    sinh ra (xem docstring `MSCApiSource`), bắt lại response qua `page.on("response")`, rồi
+    bấm nút phân trang (`.btn-next`) lặp lại để lấy thêm trang, có nghỉ giữa các lần bấm theo
+    đúng rate-limit (Mục 2.4 SPEC).
+
+    GIỚI HẠN ĐÃ XÁC NHẬN (quan trọng — đọc trước khi debug lỗi timeout):
+    Trang này có WAF/anti-bot chặn hoặc treo vô thời hạn các phiên Playwright headless khởi
+    chạy từ môi trường máy chủ/cloud/CI (đã kiểm chứng: cùng đoạn code này chạy OK khi thao
+    tác qua trình duyệt tương tác thật, nhưng `chromium.launch(headless=True)` gọi trực tiếp
+    từ một quy trình Python trong môi trường sandbox/cloud bị treo ở bước `page.goto` dù dùng
+    `channel="msedge"` hay `headless=False`). Nếu chạy source này mà liên tục timeout ở
+    `page.goto`, nhiều khả năng đây là do IP/mạng của máy đang chạy bị WAF liệt vào danh sách
+    chặn tự động hoá — thử lại từ mạng dân dụng (nhà/văn phòng) thay vì máy chủ/cloud.
+    Ngoài ra, WAF có vẻ cũng theo dõi tốc độ thao tác trong 1 phiên: bấm phân trang quá
+    nhanh/nhiều trong thời gian ngắn có thể khiến toàn bộ phiên (kể cả điều hướng thường)
+    bị từ chối — nên `_MIN_PAGINATION_INTERVAL_SECONDS` KHÔNG được hạ thấp hơn giá trị mặc định.
     """
 
     name = "browser"
+    SEARCH_URL = "https://muasamcong.mpi.gov.vn/web/guest/contractor-selection?render=search"
+    _MIN_PAGINATION_INTERVAL_SECONDS = 2.5
+    _MAX_PAGES = 40
 
     def __init__(self, cfg: CrawlerConfig, cache_root: Path):
         self._cfg = cfg
@@ -111,8 +132,9 @@ class MSCBrowserSource(TenderSource):
                 "Playwright chưa được cài đặt (`pip install playwright && playwright install chromium`)."
             ) from e
 
+        import time
+
         captured: list[dict] = []
-        fetched = 0
 
         def _on_response(response) -> None:
             if "smart/search" in response.url and response.request.method == "POST":
@@ -127,15 +149,36 @@ class MSCBrowserSource(TenderSource):
                 context = browser.new_context(user_agent=self._cfg.user_agent)
                 page = context.new_page()
                 page.on("response", _on_response)
-                page.goto(self._cfg.base_url, wait_until="networkidle", timeout=self._cfg.timeout_seconds * 1000)
+                page.goto(self.SEARCH_URL, wait_until="networkidle", timeout=self._cfg.timeout_seconds * 1000)
+                page.click(".button__search", timeout=self._cfg.timeout_seconds * 1000)
+                page.wait_for_timeout(int(self._MIN_PAGINATION_INTERVAL_SECONDS * 1000))
+
+                def _total_captured() -> int:
+                    return sum(len((pl.get("page") or {}).get("content", [])) for pl in captured)
+
+                clicks = 0
+                while _total_captured() < max_records and clicks < self._MAX_PAGES:
+                    next_btn = page.locator(".btn-next").first
+                    if next_btn.count() == 0 or next_btn.is_disabled():
+                        break
+                    next_btn.click()
+                    clicks += 1
+                    time.sleep(self._MIN_PAGINATION_INTERVAL_SECONDS)
                 browser.close()
         except Exception as e:  # noqa: BLE001
             raise TenderSourceError(f"MSCBrowserSource thất bại: {e}") from e
 
+        fetched = 0
+        seen_ids: set[str] = set()
         for payload in captured:
             for raw in (payload.get("page") or {}).get("content", []):
                 if fetched >= max_records:
                     return
+                notify_no = raw.get("notifyNo")
+                if notify_no and notify_no in seen_ids:
+                    continue
+                if notify_no:
+                    seen_ids.add(notify_no)
                 try:
                     yield parse_msc_api_record(raw)
                     fetched += 1
