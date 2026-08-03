@@ -172,3 +172,4 @@ Xem Mục 4 của [`docs/SPEC.md`](docs/SPEC.md).
 - [`docs/SPEC.md`](docs/SPEC.md) — đặc tả đầy đủ (mục tiêu, kiến trúc, kế hoạch 7 ngày)
 - [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — nguồn gốc và giới hạn của dữ liệu
 - [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — kiến trúc, tier, metric từng module ML
+- [`docs/COLAB_GUIDE.md`](docs/COLAB_GUIDE.md) — hướng dẫn chạy `notebooks/01-04` trên Google Colab để tạo checkpoint Tier 1
