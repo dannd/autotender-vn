@@ -20,9 +20,9 @@ Số liệu dưới đây trích từ lần chạy `scripts/evaluate.py` gần n
 | 2 | XLM-R zero-shot (QA-style prompting) | Chưa cài `transformers` trong môi trường demo |
 | 3 | Regex + từ điển từ khoá | **Đang chạy** |
 
-**Metric (Tier 3, distant supervision, 232 bản ghi = 20 tổng hợp + 12 + 200 THẬT — xem
-DATA_CARD.md mục 8, 9):** entity-F1 = 0.965 (micro), per-entity: CONTRACT_TYPE 1.00, DURATION
-1.00, FUNDING 0.949, INVESTOR 0.983, METHOD 0.971, PACKAGE_NAME 0.909, VALUE 1.00.
+**Metric (Tier 3, distant supervision, 521 bản ghi = 20 tổng hợp + 12 + 489 THẬT — xem
+DATA_CARD.md mục 8, 9):** entity-F1 = 0.956 (micro), per-entity: CONTRACT_TYPE 1.00, DURATION
+0.985, FUNDING 0.936, INVESTOR 0.983, METHOD 0.958, PACKAGE_NAME 0.899, VALUE 1.00.
 
 Đây là số liệu **có ý nghĩa hơn** kết quả F1=1.0 trước đó chạy trên riêng 20 mẫu tổng hợp
 (vốn phản ánh tính nhất quán nội tại do nhãn và regex cùng dựa trên khớp chuỗi — xem DATA_CARD.md
@@ -46,16 +46,18 @@ làm test set độc lập.
 | 2 | XLM-R zero-shot classification | Chưa cài `transformers` |
 | 3 | Keyword matching | **Đang chạy** |
 
-**Metric (232 bản ghi, 212 bản ghi THẬT — nhãn `package_type` lấy trực tiếp từ trường
+**Metric (521 bản ghi, 501 bản ghi THẬT — nhãn `package_type` lấy trực tiếp từ trường
 "Lĩnh vực MSC" trên trang chi tiết dauthau.asia, không phải suy đoán):**
-- Tier 3 (keyword): macro-F1 = 0.531
-- Baseline TF-IDF + LogisticRegression (3 seed): macro-F1 = 0.465 ± 0.031
+- Tier 3 (keyword): macro-F1 = 0.500
+- Baseline TF-IDF + LogisticRegression (3 seed): macro-F1 = 0.554 ± 0.008
 
-**Nhận xét:** trên tập dữ liệu thật đa dạng hơn nhiều (5 lớp, phân bố thật: xây lắp 83,
-hàng hóa 68, phi tư vấn 25, hỗn hợp 15, tư vấn 9), cả 2 phương pháp đều thấp hơn hẳn số liệu
-cũ đo trên 20 mẫu tổng hợp (0.610/0.394) — con số trước phản ánh dữ liệu quá nhỏ/dễ, con số
-này trung thực hơn và cho thấy rõ **cần Tier 1 (fine-tune) thật sự** để vượt qua giới hạn của
-keyword matching trên văn bản thật đa dạng.
+**Nhận xét quan trọng:** đây là điểm dữ liệu đảo chiều đáng chú ý — với 20 mẫu, Tier 3 vượt
+baseline (0.610 vs 0.394); với 232 mẫu, khoảng cách thu hẹp; với 521 mẫu (phân bố thật: xây
+lắp 186, hàng hóa 184, phi tư vấn 74, tư vấn 26, hỗn hợp 19), **baseline thống kê đã vượt
+Tier 3 rule-based** (0.554 vs 0.500). Đây đúng như dự đoán lý thuyết: rule-based không cải
+thiện khi có thêm dữ liệu (quy tắc cố định), còn phương pháp thống kê/học máy thì có — minh
+chứng cụ thể, đo được, cho lý do cần nâng cấp lên Tier 1 (fine-tune) khi đã đủ dữ liệu, đúng
+tinh thần thiết kế Degraded Mode (Tier 3 là sàn an toàn tạm thời, không phải đích đến).
 
 ---
 

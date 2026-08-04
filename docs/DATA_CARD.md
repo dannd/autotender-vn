@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | Bản ghi TBMT mẫu | `data/samples/tender_notices.jsonl` | Tổng hợp (synthetic) | 20 bản ghi | `scripts/build_samples.py` |
 | Bản ghi TBMT thật (pilot, muasamcong) | `data/samples/real_pilot_sample.jsonl` | **Thật**, thu thập thủ công | 12 bản ghi | Xem Mục 8 bên dưới |
-| Bản ghi TBMT thật (dauthau.asia) | `data/samples/real_dauthau_asia_sample.jsonl` | **Thật**, crawl tự động có rate-limit | 200 bản ghi | `scripts/crawl_dauthau_asia.py` — xem Mục 9 |
+| Bản ghi TBMT thật (dauthau.asia) | `data/samples/real_dauthau_asia_sample.jsonl` | **Thật**, crawl tự động có rate-limit | 489 bản ghi | `scripts/crawl_dauthau_asia.py --enrich-details` — xem Mục 9 |
 | Corpus mẫu HSMT + nguyên tắc pháp lý | `data/samples/corpus/*.md` | Tổng hợp/minh hoạ | 3 file, 13 chunk | Biên soạn thủ công |
 | Dataset NER (distant supervision) | `data/processed/ner_dataset.jsonl` | Nhãn tự động (silver) | 20 bản ghi | `scripts/build_dataset.py` |
 | Dataset Classifier | `data/processed/classifier_dataset.jsonl` | Nhãn tự động | 20 bản ghi | `scripts/build_dataset.py` |
@@ -151,7 +151,7 @@ cảnh báo chi tiết trong docstring của `MSCBrowserSource`. Không nên tă
 
 ---
 
-## 9. Nguồn thứ hai: crawl dauthau.asia (200 bản ghi thật)
+## 9. Nguồn thứ hai: crawl dauthau.asia (489 bản ghi thật, đủ 6/8 trường NER)
 
 **dauthau.asia (DauThau.info)** là sản phẩm phần mềm thương mại (gói trả phí VIP1/VIP5)
 của Công ty CP Hệ sinh thái Đấu Thầu, tự nhận là tổng hợp lại dữ liệu công khai từ Hệ
@@ -160,10 +160,10 @@ thống mạng đấu thầu quốc gia và cung cấp thêm công cụ tìm ki�
 **Ràng buộc điều khoản sử dụng — đã đọc trước khi crawl:** Điều 2 và Điều 4 của
 [Điều khoản sử dụng](https://dauthau.asia/siteterms/terms-and-conditions.html) quy định
 không được sao chép/tái sử dụng nội dung ngoài **mục đích cá nhân, nội bộ, phi thương mại**
-nếu không có sự cho phép bằng văn bản. Việc crawl 200 bản ghi dưới đây được thực hiện sau
-khi người thực hiện đồ án xác nhận rõ ràng đây là mục đích học thuật/nội bộ, phi thương
-mại, phù hợp với ngoại lệ nêu trong chính điều khoản đó. **Nếu tái sử dụng dữ liệu này cho
-mục đích khác (đặc biệt là thương mại), cần liên hệ xin phép DauThau.info trước.**
+nếu không có sự cho phép bằng văn bản. Việc crawl dưới đây được thực hiện sau khi người
+thực hiện đồ án xác nhận rõ ràng đây là mục đích học thuật/nội bộ, phi thương mại, phù hợp
+với ngoại lệ nêu trong chính điều khoản đó. **Nếu tái sử dụng dữ liệu này cho mục đích khác
+(đặc biệt là thương mại), cần liên hệ xin phép DauThau.info trước.**
 
 **Khác biệt kỹ thuật so với muasamcong.mpi.gov.vn (Mục 2, 8):** trang này dùng phân trang
 URL tĩnh (`https://dauthau.asia/thongbao/moithau/?page=N`), server-render HTML thuần,
@@ -172,14 +172,34 @@ KHÔNG cần CSRF token động hay trình duyệt — gọi thẳng bằng `htt
 `robots.txt` của trang chỉ chặn vài thư mục kỹ thuật (`/data/`, `/users/`,
 `/statistics/`...), không chặn `/thongbao/moithau/`.
 
-**Kết quả:** `scripts/crawl_dauthau_asia.py --max-pages 10` lấy được **200 bản ghi thật,
-không trùng lặp**, không gặp lỗi/chặn nào (khác hẳn trải nghiệm với muasamcong.mpi.gov.vn),
-với rate-limit 2.5 giây/request. Lưu tại `data/samples/real_dauthau_asia_sample.jsonl`.
+**Giai đoạn 1 (danh sách):** trang danh sách chỉ có `tbmt_id`, `package_name`, `investor`,
+`publish_date`, `close_date`, `source_url`.
 
-**Giới hạn của bộ dữ liệu này:** trang danh sách chỉ hiển thị công khai `tbmt_id`,
-`package_name`, `investor`, `publish_date`, `close_date`, `source_url` — KHÔNG có giá gói
-thầu, nguồn vốn, hình thức lựa chọn nhà thầu, loại hợp đồng (các trường này đòi hỏi vào
-từng trang chi tiết hoặc đăng nhập tài khoản trả phí). Vì vậy bộ dữ liệu này phù hợp để mở
-rộng corpus/tập nhận diện tên gói thầu — chủ đầu tư thật, nhưng **không thể dùng để mở rộng
-dataset NER cho các trường VALUE/FUNDING/METHOD** (những trường đó vẫn cần dữ liệu tổng hợp
-hoặc dữ liệu từ nguồn khác có đủ trường).
+**Giai đoạn 2 (làm giàu từ trang chi tiết — `enrich_dauthau_asia_detail`):** mỗi trang chi
+tiết (vd `.../thongbao/moithau/<slug>.html`) hiển thị CÔNG KHAI (không cần đăng nhập) thêm 4
+trường quan trọng: `funding_source` ("Chi tiết nguồn vốn"), `selection_method` ("Hình thức
+LCNT"), `contract_type` ("Loại hợp đồng"), và đặc biệt **`package_type`** từ trường "Lĩnh vực
+MSC" — khớp thẳng với 5 lớp phân loại M3 cần (hàng hóa/xây lắp/tư vấn/phi tư vấn/hỗn hợp),
+không phải suy đoán. `package_value` (giá gói thầu) và `execution_time` (thời gian thực
+hiện) LUÔN hiển thị "Để xem đầy đủ thông tin mời bạn Đăng nhập hoặc Đăng ký" — bị khoá sau
+đăng nhập, code phát hiện đúng marker này và giữ nguyên `None`, không suy đoán (Mục 2.2).
+
+**Đã kiểm tra thêm:** trang "Kết quả lựa chọn nhà thầu" (`/ketqua/luachon-nhathau/`, kết quả
+đấu thầu ĐÃ công bố) cũng khoá cột giá trúng thầu sau đăng nhập tương tự — xác nhận đây là
+giới hạn nhất quán trên toàn site theo mô hình kinh doanh của họ (không phải do dữ liệu còn
+"nóng"/nhạy cảm), không có cách nào lấy `package_value`/`execution_time` công khai từ site
+này.
+
+**Kết quả:** `scripts/crawl_dauthau_asia.py --max-pages 25 --enrich-details` lấy được **489
+bản ghi thật, không trùng lặp**, không gặp lỗi/chặn nào trong toàn bộ 2 lần chạy (khác hẳn
+trải nghiệm với muasamcong.mpi.gov.vn), rate-limit 2.5 giây/request (~500 request cho danh
+sách + chi tiết, tổng ~20 phút chia 2 lần chạy, cache tránh tải lại các trang đã có). Lưu tại
+`data/samples/real_dauthau_asia_sample.jsonl`. Độ phủ trường: `package_type` 100%,
+`funding_source` 98%, `selection_method`/`contract_type` 100%, `package_value`/
+`execution_time` 0% (khoá vĩnh viễn, xem trên).
+
+**Tác động tới huấn luyện:** `scripts/build_dataset.py` mặc định gộp cả 3 nguồn (20 tổng
+hợp + 12 muasamcong + 489 dauthau.asia = 521 bản ghi) để sinh `data/processed/ner_dataset.jsonl`
+và `classifier_dataset.jsonl`. Đánh giá lại M2/M3 trên bộ 521 bản ghi này (`docs/MODEL_CARD.md`)
+cho kết quả trung thực hơn hẳn, và ở quy mô này baseline TF-IDF+LogisticRegression đã vượt
+Tier 3 rule-based cho M3 — đúng dự đoán lý thuyết, minh chứng cho lý do cần Tier 1.
