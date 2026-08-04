@@ -49,8 +49,29 @@ class RetrievedChunk(BaseModel):
 
     chunk_id: str
     text: str
-    source_doc: str  # "Thông tư 79/2025/TT-BTC — Mẫu số 1" ...
+    source_doc: str  # "Luật Đấu thầu số 22/2023/QH15 — Điều 44" ...
     score: float
+    # Metadata pháp lý (tuỳ chọn) — dùng để lọc/hiển thị căn cứ chính xác hơn source_doc dạng chuỗi.
+    law_id: str | None = None  # vd "luat_22_2023_qh15"
+    dieu_so: int | None = None
+
+
+class LegalArticle(BaseModel):
+    """Một Điều trong văn bản pháp luật thật (Luật/Nghị định/Thông tư), lấy NGUYÊN VĂN từ
+    nguồn công khai chính thống — không tự soạn/diễn giải (Mục "Không bịa đặt").
+    Văn bản quy phạm pháp luật không thuộc đối tượng bảo hộ quyền tác giả (Điều 15 Luật
+    Sở hữu trí tuệ VN) nên lưu trữ nguyên văn là hợp lệ.
+    """
+
+    law_id: str  # "luat_22_2023_qh15"
+    law_name: str  # "Luật Đấu thầu số 22/2023/QH15"
+    chuong_so: str | None = None  # "I", "II"...
+    chuong_title: str | None = None
+    dieu_so: int
+    dieu_title: str
+    text: str  # nguyên văn nội dung Điều (không bao gồm tiêu đề)
+    source_url: str
+    fetched_at: datetime
 
 
 class ComplianceFlag(BaseModel):
