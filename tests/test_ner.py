@@ -25,3 +25,17 @@ def test_ner_tier3_extracts_expected_fields_without_any_checkpoint():
     assert "5.200.000.000" in value_field.value
     assert value_field.source == "regex"
     assert 0 < value_field.confidence <= 1
+
+
+def test_ner_tier3_does_not_extract_missing_info_placeholder_as_a_value():
+    """Regression: regex DURATION từng khớp nhầm chính placeholder báo thiếu thông tin
+    (phát hiện khi đánh giá trên 232 bản ghi thật — xem reports/metrics.json)."""
+    text = (
+        "Tên gói thầu: Mua sắm thiết bị\n"
+        "Chủ đầu tư: Sở Y tế\n"
+        "Thời gian thực hiện hợp đồng: [CẦN NGƯỜI DÙNG BỔ SUNG: thời gian thực hiện]\n"
+    )
+    module = NERModule()
+    fields = module.extract(text)
+    assert all("[CẦN NGƯỜI DÙNG BỔ SUNG" not in f.value for f in fields)
+    assert not any(f.name == "DURATION" for f in fields)

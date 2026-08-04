@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from autotender.config import CrawlerConfig, resolve_path  # noqa: E402
 from autotender.crawler.msc_client import MscHttpClient  # noqa: E402
-from autotender.crawler.parser import parse_dauthau_asia_rows  # noqa: E402
+from autotender.crawler.parser import enrich_dauthau_asia_detail, parse_dauthau_asia_rows  # noqa: E402
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 from autotender.utils.logging import get_logger  # noqa: E402
 
@@ -53,6 +53,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Crawl công khai dauthau.asia (mục đích học thuật, phi thương mại).")
     parser.add_argument("--max-pages", type=int, default=10, help="Số trang tối đa (20 bản ghi/trang)")
     parser.add_argument("--out", default="data/samples/real_dauthau_asia_sample.jsonl", help="File output jsonl")
+    parser.add_argument(
+        "--enrich-details",
+        action="store_true",
+        help="Vào từng trang chi tiết để lấy thêm nguồn vốn/hình thức LCNT/loại hợp đồng/loại gói thầu "
+        "(công khai, không cần đăng nhập). Giá gói thầu/thời gian thực hiện vẫn bị khoá sau đăng nhập, "
+        "giữ nguyên None — xem docs/DATA_CARD.md mục 9.",
+    )
+    parser.add_argument("--max-details", type=int, default=None, help="Giới hạn số trang chi tiết ghé thăm (mặc định: tất cả)")
     args = parser.parse_args()
 
     cfg = build_config()
@@ -85,6 +93,20 @@ def main() -> None:
                     all_notices.append(n)
                     new_count += 1
             logger.info("Trang %d: %d bản ghi (%d mới, %d trùng).", page_num, len(notices), new_count, len(notices) - new_count)
+
+        if args.enrich_details:
+            n_targets = min(args.max_details, len(all_notices)) if args.max_details else len(all_notices)
+            logger.info("Bắt đầu ghé %d trang chi tiết để bổ sung trường (rate-limit %.1fs/trang)...", n_targets, cfg.min_request_interval_seconds)
+            for i in range(n_targets):
+                notice = all_notices[i]
+                detail_path = notice.source_url.replace("https://dauthau.asia", "")
+                try:
+                    detail_html = client.request_text("GET", detail_path)
+                    all_notices[i] = enrich_dauthau_asia_detail(notice, detail_html)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("Bỏ qua trang chi tiết lỗi (%s): %s", notice.tbmt_id, e)
+                if (i + 1) % 20 == 0:
+                    logger.info("  Đã xong %d/%d trang chi tiết...", i + 1, n_targets)
 
     with open(out_path, "w", encoding="utf-8") as f:
         for n in all_notices:

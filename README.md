@@ -131,13 +131,14 @@ Chi tiết từng module: xem Mục 6 của [`docs/SPEC.md`](docs/SPEC.md) và
 ## Kết quả đánh giá
 
 Chạy `python scripts/evaluate.py` để tái tạo `reports/metrics.json` + biểu đồ trong
-`reports/figures/`. Tóm tắt (Tier 3, xem giới hạn phương pháp trong
-[`docs/DATA_CARD.md`](docs/DATA_CARD.md) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md)):
+`reports/figures/`. Đánh giá trên **232 bản ghi (212 bản ghi THẬT** từ muasamcong.mpi.gov.vn
++ dauthau.asia, xem `docs/DATA_CARD.md` mục 8-9). Tóm tắt (Tier 3, xem giới hạn phương pháp
+trong [`docs/DATA_CARD.md`](docs/DATA_CARD.md) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md)):
 
 | Module | Metric | Kết quả (Tier 3) | Baseline |
 |---|---|---|---|
-| M2 NER | entity-F1 | 1.00 | — |
-| M3 Classifier | macro-F1 | 0.61 | TF-IDF+LogReg: 0.39 ± 0.15 |
+| M2 NER | entity-F1 | 0.965 | — |
+| M3 Classifier | macro-F1 | 0.531 | TF-IDF+LogReg: 0.465 ± 0.031 |
 | M4 Retrieval | proxy Recall@5 | 1.00 | BM25 chính là Tier 3 |
 | M6 Compliance | F1/lớp | 1.00 (OK, R1, R2, R3) | keyword rules chính là Tier 3 |
 

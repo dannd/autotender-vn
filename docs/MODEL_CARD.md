@@ -20,11 +20,21 @@ Số liệu dưới đây trích từ lần chạy `scripts/evaluate.py` gần n
 | 2 | XLM-R zero-shot (QA-style prompting) | Chưa cài `transformers` trong môi trường demo |
 | 3 | Regex + từ điển từ khoá | **Đang chạy** |
 
-**Metric (Tier 3, distant supervision, 20 mẫu):** entity-F1 = 1.0 (xem giới hạn Mục 5,
-DATA_CARD.md — số liệu phản ánh tính nhất quán nội tại, không phải khả năng tổng quát).
+**Metric (Tier 3, distant supervision, 232 bản ghi = 20 tổng hợp + 12 + 200 THẬT — xem
+DATA_CARD.md mục 8, 9):** entity-F1 = 0.965 (micro), per-entity: CONTRACT_TYPE 1.00, DURATION
+1.00, FUNDING 0.949, INVESTOR 0.983, METHOD 0.971, PACKAGE_NAME 0.909, VALUE 1.00.
+
+Đây là số liệu **có ý nghĩa hơn** kết quả F1=1.0 trước đó chạy trên riêng 20 mẫu tổng hợp
+(vốn phản ánh tính nhất quán nội tại do nhãn và regex cùng dựa trên khớp chuỗi — xem DATA_CARD.md
+mục 5). Đánh giá lại trên 232 bản ghi (212 bản ghi thật) từng phát hiện một lỗi thật: regex
+DURATION khớp nhầm chính placeholder `[CẦN NGƯỜI DÙNG BỔ SUNG...]` khi trường `execution_time`
+là `None` (212/232 bản ghi thật không có trường này) — precision khi đó chỉ 0.138. Đã sửa
+trong `models/ner.py` (bỏ qua match trùng placeholder) — một minh chứng cụ thể cho giá trị của
+việc đánh giá trên dữ liệu thật thay vì chỉ dữ liệu tổng hợp tự nhất quán.
 
 **Việc cần làm để có Tier 1 thật:** chạy `notebooks/01_train_ner.ipynb` trên Colab với
-dữ liệu crawl thật (≥ vài trăm bản ghi) + 200 mẫu gán tay làm test set độc lập.
+`data/processed/ner_dataset.jsonl` (đã tự động dùng 232 bản ghi kết hợp) + 200 mẫu gán tay
+làm test set độc lập.
 
 ---
 
@@ -36,13 +46,16 @@ dữ liệu crawl thật (≥ vài trăm bản ghi) + 200 mẫu gán tay làm te
 | 2 | XLM-R zero-shot classification | Chưa cài `transformers` |
 | 3 | Keyword matching | **Đang chạy** |
 
-**Metric (20 mẫu tổng hợp):**
-- Tier 3 (keyword): macro-F1 = 0.610
-- Baseline TF-IDF + LogisticRegression (3 seed): macro-F1 = 0.394 ± 0.149
+**Metric (232 bản ghi, 212 bản ghi THẬT — nhãn `package_type` lấy trực tiếp từ trường
+"Lĩnh vực MSC" trên trang chi tiết dauthau.asia, không phải suy đoán):**
+- Tier 3 (keyword): macro-F1 = 0.531
+- Baseline TF-IDF + LogisticRegression (3 seed): macro-F1 = 0.465 ± 0.031
 
-**Nhận xét:** với dữ liệu rất nhỏ (20 mẫu), rule-based Tier 3 vượt trội baseline thống kê
-cổ điển — đúng như lý do thiết kế Degraded Mode ưu tiên rule-based khi dữ liệu/hạ tầng
-hạn chế. Kết quả này KHÔNG ngoại suy được cho tập dữ liệu lớn hơn.
+**Nhận xét:** trên tập dữ liệu thật đa dạng hơn nhiều (5 lớp, phân bố thật: xây lắp 83,
+hàng hóa 68, phi tư vấn 25, hỗn hợp 15, tư vấn 9), cả 2 phương pháp đều thấp hơn hẳn số liệu
+cũ đo trên 20 mẫu tổng hợp (0.610/0.394) — con số trước phản ánh dữ liệu quá nhỏ/dễ, con số
+này trung thực hơn và cho thấy rõ **cần Tier 1 (fine-tune) thật sự** để vượt qua giới hạn của
+keyword matching trên văn bản thật đa dạng.
 
 ---
 

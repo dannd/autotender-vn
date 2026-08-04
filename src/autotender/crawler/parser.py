@@ -129,6 +129,62 @@ def parse_dauthau_asia_rows(html: str) -> list[TenderNotice]:
     return notices
 
 
+_LOGIN_REQUIRED_MARKER = "Đăng nhập"
+
+_DAUTHAU_DETAIL_FIELD_MAP = {
+    "Tên gói thầu": "package_name",
+    "Chủ đầu tư": "investor",
+    "Chi tiết nguồn vốn": "funding_source",
+    "Hình thức LCNT": "selection_method",
+    "Loại hợp đồng": "contract_type",
+    "Lĩnh vực MSC": "package_type",
+    "Giá gói thầu": "package_value",  # thường bị khoá sau đăng nhập — xem _LOGIN_REQUIRED_MARKER
+    "Thời gian thực hiện hợp đồng": "execution_time",  # thường bị khoá sau đăng nhập
+}
+
+
+def enrich_dauthau_asia_detail(notice: TenderNotice, detail_html: str) -> TenderNotice:
+    """Bổ sung các trường từ trang chi tiết dauthau.asia (nguồn vốn, hình thức LCNT, loại
+    hợp đồng, lĩnh vực/loại gói thầu...) vào một `TenderNotice` đã có từ trang danh sách.
+
+    Một số trường (giá gói thầu, thời gian thực hiện) chỉ hiển thị sau khi đăng nhập —
+    nếu gặp thông báo yêu cầu đăng nhập thì GIỮ NGUYÊN None, không suy đoán (Mục 2.2 SPEC).
+    """
+    from selectolax.parser import HTMLParser
+
+    tree = HTMLParser(detail_html)
+    updates: dict[str, Any] = {}
+
+    for tit in tree.css(".c-tit"):
+        label = tit.text(strip=True)
+        # tooltip "i" đôi khi lẫn vào text tiêu đề (vd "Lĩnh vực MSC <i>...") — chỉ lấy phần trước icon
+        label = label.split("\n")[0].strip()
+        field = _DAUTHAU_DETAIL_FIELD_MAP.get(label)
+        if field is None:
+            continue
+        parent = tit.parent
+        val_node = parent.css_first(".c-val") if parent else None
+        if val_node is None:
+            continue
+        value = val_node.text(strip=True)
+        if not value or _LOGIN_REQUIRED_MARKER in value:
+            continue  # bị khoá sau đăng nhập — không bịa, giữ None
+
+        if field == "funding_source":
+            value = value.removeprefix("Nguồn vốn").strip()
+        elif field == "package_type":
+            value = value.lower()
+        elif field == "package_value":
+            digits = "".join(ch for ch in value if ch.isdigit())
+            if not digits:
+                continue
+            value = float(digits)
+
+        updates[field] = value
+
+    return notice.model_copy(update=updates) if updates else notice
+
+
 def _parse_vn_datetime(text: str | None) -> date | None:
     """Parse chuỗi 'HH:MM DD/MM/YYYY' (định dạng hiển thị của dauthau.asia) thành date."""
     if not text:

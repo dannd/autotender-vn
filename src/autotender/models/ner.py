@@ -160,6 +160,10 @@ class NERModule(BaseModule[list[ExtractedField]]):
             match = pattern.search(text)
             if match:
                 value = match.group(group_idx).strip()
+                if "[CẦN NGƯỜI DÙNG BỔ SUNG" in value:
+                    # Placeholder báo thiếu thông tin (Mục 2.2) — không phải giá trị thật,
+                    # không được coi là đã trích xuất được (tránh khớp nhầm chính placeholder).
+                    continue
                 fields.append(
                     ExtractedField(
                         name=label,

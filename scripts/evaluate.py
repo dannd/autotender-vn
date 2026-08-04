@@ -40,15 +40,28 @@ from autotender.utils.logging import get_logger  # noqa: E402
 ensure_utf8_console()
 logger = get_logger(__name__)
 
-SAMPLES_FILE = resolve_path("data/samples/tender_notices.jsonl")
+SAMPLES_DIR = resolve_path("data/samples")
+# Kết hợp cả dữ liệu tổng hợp lẫn dữ liệu thật đã crawl được (Mục 8, 9 DATA_CARD.md) để
+# đánh giá trên tập đại diện thực tế hơn, không chỉ 20 mẫu tổng hợp.
+SAMPLES_FILES = [
+    SAMPLES_DIR / "tender_notices.jsonl",
+    SAMPLES_DIR / "real_pilot_sample.jsonl",
+    SAMPLES_DIR / "real_dauthau_asia_sample.jsonl",
+]
 REPORTS_DIR = resolve_path("reports")
 FIGURES_DIR = REPORTS_DIR / "figures"
 SEEDS = [0, 1, 2]
 
 
 def _load_notices() -> list[TenderNotice]:
-    with open(SAMPLES_FILE, encoding="utf-8") as f:
-        return [TenderNotice.model_validate_json(line) for line in f]
+    notices = []
+    for path in SAMPLES_FILES:
+        if not path.exists():
+            logger.warning("Bỏ qua %s (không tồn tại).", path)
+            continue
+        with open(path, encoding="utf-8") as f:
+            notices.extend(TenderNotice.model_validate_json(line) for line in f if line.strip())
+    return notices
 
 
 def evaluate_ner(notices: list[TenderNotice]) -> dict:
