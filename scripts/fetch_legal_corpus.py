@@ -42,19 +42,17 @@ SOURCES: dict[str, LegalDocSource] = {
             "Điều 1 Luật số 90/2025/QH15."
         ),
     ),
-    "nd_24_2024_ndcp": LegalDocSource(
-        law_id="nd_24_2024_ndcp",
-        law_name="Nghị định 24/2024/NĐ-CP",
-        url=(
-            "https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-quy-dinh-chi-tiet-mot-so-dieu-va-bien-phap-"
-            "thi-hanh-luat-dau-thau-ve-lua-chon-nha-thau-119240310121301858.htm"
-        ),
-        start_marker="NHỮNG QUY ĐỊNH CHUNG",
-        end_marker="Tham khảo thêm",
-        # Nghị định này không render dòng "Chương I" cho chương đầu (chỉ có tiêu đề) —
-        # xem docstring parse_articles.
-        initial_chuong_so="I",
-        initial_chuong_title="NHỮNG QUY ĐỊNH CHUNG",
+    "nd_214_2025_ndcp": LegalDocSource(
+        law_id="nd_214_2025_ndcp",
+        # Nghị định 214/2025/NĐ-CP (hiệu lực 4/8/2025) THAY THẾ Nghị định 24/2024/NĐ-CP —
+        # phát hiện qua đối chiếu Điều 44 Luật (bản hợp nhất) đã đơn giản hoá đáng kể so với
+        # nội dung chi tiết cũ, tra cứu lại thì NĐ 24/2024 đã hết hiệu lực. KHÔNG dùng NĐ
+        # 24/2024 làm căn cứ pháp luật hiện hành.
+        law_name="Nghị định 214/2025/NĐ-CP (thay thế Nghị định 24/2024/NĐ-CP, hiệu lực từ 04/8/2025)",
+        url="https://dauthau.gxd.vn/van-ban/dau-thau/nghi-dinh-214-2025.html",
+        start_marker="Chương I NHỮNG QUY ĐỊNH CHUNG",
+        start_occurrence=2,  # trang có Mục lục lặp lại heading trước phần nội dung thật
+        end_marker="Last Updated:",
     ),
 }
 
