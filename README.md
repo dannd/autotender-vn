@@ -151,11 +151,15 @@ trong `reports/metrics.json` và `docs/MODEL_CARD.md`.
 - **Chưa có checkpoint Tier 1 thật** cho cả 5 module — môi trường phát triển đồ án
   không có GPU/Colab trong phạm vi 7 ngày. Notebooks `notebooks/01-04` đã viết sẵn, sẵn
   sàng chạy trên Colab (xem hướng dẫn trong từng notebook).
-- **Crawler thật (`MSCApiSource`)** đã xác định đúng endpoint API nội bộ của
-  `muasamcong.mpi.gov.vn` nhưng chưa xác định được hợp đồng payload chính xác (server trả
-  400 với mọi payload hợp lý đã thử) — xem chi tiết điều tra trong
-  [`docs/DATA_CARD.md`](docs/DATA_CARD.md) mục 2. `LocalSampleSource` (20 mẫu tổng hợp)
-  đảm bảo phần mềm luôn demo được.
+- **Crawler thật từ `muasamcong.mpi.gov.vn` (`MSCApiSource`/`MSCBrowserSource`)** — endpoint
+  cần CSRF token động lấy qua trình duyệt thật; đã lấy được 12 bản ghi thật thí điểm nhưng
+  tự động hoá quy mô lớn bị giới hạn bởi WAF (xem `docs/DATA_CARD.md` mục 2 & 8).
+  `LocalSampleSource` (20 mẫu tổng hợp) đảm bảo phần mềm luôn demo được.
+- **Nguồn dữ liệu thật thứ hai (`dauthau.asia`)**: crawl thành công **200 bản ghi TBMT
+  thật** (`data/samples/real_dauthau_asia_sample.jsonl`) qua `scripts/crawl_dauthau_asia.py`
+  — không gặp giới hạn WAF như nguồn trên, nhưng chỉ có các trường cấp danh sách (không có
+  giá gói thầu/nguồn vốn). Xem điều khoản sử dụng và giới hạn đầy đủ trong
+  `docs/DATA_CARD.md` mục 9.
 - **Corpus RAG** là dữ liệu minh hoạ/tổng hợp, không phải văn bản pháp luật thật — xem
   cảnh báo `[MINH HỌA]` hiển thị trên UI và chi tiết trong `docs/DATA_CARD.md` mục 4.
 - **`notebooks/05_train_compliance.ipynb`** chưa được tạo (ngoài phạm vi 7 ngày) — cần

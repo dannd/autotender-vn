@@ -135,3 +135,31 @@ class MscHttpClient:
                 time.sleep(min(2**attempt, 10))
         assert last_error is not None
         raise last_error
+
+    def request_text(self, method: str, path_or_url: str, params: dict[str, Any] | None = None, use_cache: bool = True) -> str:
+        """Gọi trang HTML thường (GET), có cache và rate-limit. Dùng cho nguồn không có API JSON."""
+        url = urljoin(self._cfg.base_url, path_or_url)
+        cache_key = {"params": params or {}}
+        cache_file = self._cache_path(method, url, cache_key)
+        if use_cache and cache_file.exists():
+            logger.debug("Cache hit: %s", url)
+            return cache_file.read_text(encoding="utf-8")
+
+        self._check_allowed(url)
+        self._throttle()
+
+        last_error: Exception | None = None
+        for attempt in range(1, self._cfg.max_retries + 1):
+            try:
+                resp = self._client.request(method, url, params=params)
+                resp.raise_for_status()
+                text = resp.text
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                cache_file.write_text(text, encoding="utf-8")
+                return text
+            except httpx.HTTPError as e:
+                last_error = e
+                logger.warning("Lần thử %d/%d thất bại cho %s: %s", attempt, self._cfg.max_retries, url, e)
+                time.sleep(min(2**attempt, 10))
+        assert last_error is not None
+        raise last_error

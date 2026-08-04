@@ -5,13 +5,16 @@
 | Bộ dữ liệu | Vị trí | Loại | Kích thước | Cách tạo |
 |---|---|---|---|---|
 | Bản ghi TBMT mẫu | `data/samples/tender_notices.jsonl` | Tổng hợp (synthetic) | 20 bản ghi | `scripts/build_samples.py` |
-| Bản ghi TBMT thật (pilot) | `data/samples/real_pilot_sample.jsonl` | **Thật**, thu thập thủ công | 12 bản ghi | Xem Mục 8 bên dưới |
+| Bản ghi TBMT thật (pilot, muasamcong) | `data/samples/real_pilot_sample.jsonl` | **Thật**, thu thập thủ công | 12 bản ghi | Xem Mục 8 bên dưới |
+| Bản ghi TBMT thật (dauthau.asia) | `data/samples/real_dauthau_asia_sample.jsonl` | **Thật**, crawl tự động có rate-limit | 200 bản ghi | `scripts/crawl_dauthau_asia.py` — xem Mục 9 |
 | Corpus mẫu HSMT + nguyên tắc pháp lý | `data/samples/corpus/*.md` | Tổng hợp/minh hoạ | 3 file, 13 chunk | Biên soạn thủ công |
 | Dataset NER (distant supervision) | `data/processed/ner_dataset.jsonl` | Nhãn tự động (silver) | 20 bản ghi | `scripts/build_dataset.py` |
 | Dataset Classifier | `data/processed/classifier_dataset.jsonl` | Nhãn tự động | 20 bản ghi | `scripts/build_dataset.py` |
 | Tập test Compliance (M6) | `scripts/eval_utils.py::COMPLIANCE_TEST_SET` | Gán tay | 10 câu | Biên soạn thủ công |
 
-**Không có dữ liệu cá nhân nào được thu thập.** Toàn bộ dữ liệu trong repo là tổng hợp.
+**Không có dữ liệu cá nhân nào được thu thập.** Toàn bộ dữ liệu thật thu thập được (Mục 8,
+9) là thông tin đấu thầu công khai (tên gói thầu, chủ đầu tư là tổ chức/cơ quan, không phải
+cá nhân) — không chứa thông tin cá nhân.
 
 ---
 
@@ -145,3 +148,38 @@ thuộc mạnh vào **hạ tầng mạng nơi chạy** (mạng dân dụng có k
 mạng datacenter/cloud) và **phải giữ tốc độ thao tác chậm, giống người dùng thật** — xem
 cảnh báo chi tiết trong docstring của `MSCBrowserSource`. Không nên tăng tốc độ phân trang
 để lấy nhiều dữ liệu nhanh hơn — rủi ro bị chặn hoàn toàn cao hơn lợi ích.
+
+---
+
+## 9. Nguồn thứ hai: crawl dauthau.asia (200 bản ghi thật)
+
+**dauthau.asia (DauThau.info)** là sản phẩm phần mềm thương mại (gói trả phí VIP1/VIP5)
+của Công ty CP Hệ sinh thái Đấu Thầu, tự nhận là tổng hợp lại dữ liệu công khai từ Hệ
+thống mạng đấu thầu quốc gia và cung cấp thêm công cụ tìm kiếm/phân tích.
+
+**Ràng buộc điều khoản sử dụng — đã đọc trước khi crawl:** Điều 2 và Điều 4 của
+[Điều khoản sử dụng](https://dauthau.asia/siteterms/terms-and-conditions.html) quy định
+không được sao chép/tái sử dụng nội dung ngoài **mục đích cá nhân, nội bộ, phi thương mại**
+nếu không có sự cho phép bằng văn bản. Việc crawl 200 bản ghi dưới đây được thực hiện sau
+khi người thực hiện đồ án xác nhận rõ ràng đây là mục đích học thuật/nội bộ, phi thương
+mại, phù hợp với ngoại lệ nêu trong chính điều khoản đó. **Nếu tái sử dụng dữ liệu này cho
+mục đích khác (đặc biệt là thương mại), cần liên hệ xin phép DauThau.info trước.**
+
+**Khác biệt kỹ thuật so với muasamcong.mpi.gov.vn (Mục 2, 8):** trang này dùng phân trang
+URL tĩnh (`https://dauthau.asia/thongbao/moithau/?page=N`), server-render HTML thuần,
+KHÔNG cần CSRF token động hay trình duyệt — gọi thẳng bằng `httpx` qua
+`MscHttpClient.request_text()` (dùng chung hạ tầng rate-limit/cache/robots.txt với M0).
+`robots.txt` của trang chỉ chặn vài thư mục kỹ thuật (`/data/`, `/users/`,
+`/statistics/`...), không chặn `/thongbao/moithau/`.
+
+**Kết quả:** `scripts/crawl_dauthau_asia.py --max-pages 10` lấy được **200 bản ghi thật,
+không trùng lặp**, không gặp lỗi/chặn nào (khác hẳn trải nghiệm với muasamcong.mpi.gov.vn),
+với rate-limit 2.5 giây/request. Lưu tại `data/samples/real_dauthau_asia_sample.jsonl`.
+
+**Giới hạn của bộ dữ liệu này:** trang danh sách chỉ hiển thị công khai `tbmt_id`,
+`package_name`, `investor`, `publish_date`, `close_date`, `source_url` — KHÔNG có giá gói
+thầu, nguồn vốn, hình thức lựa chọn nhà thầu, loại hợp đồng (các trường này đòi hỏi vào
+từng trang chi tiết hoặc đăng nhập tài khoản trả phí). Vì vậy bộ dữ liệu này phù hợp để mở
+rộng corpus/tập nhận diện tên gói thầu — chủ đầu tư thật, nhưng **không thể dùng để mở rộng
+dataset NER cho các trường VALUE/FUNDING/METHOD** (những trường đó vẫn cần dữ liệu tổng hợp
+hoặc dữ liệu từ nguồn khác có đủ trường).
