@@ -1,25 +1,24 @@
 # AutoTender-VN
 
-Phần mềm hỗ trợ **tự động soạn thảo Hồ sơ mời thầu (E-HSMT)** tại Việt Nam bằng Deep
-Learning — đồ án cuối môn Deep Learning, bậc Thạc sĩ, thực hiện trong 7 ngày.
+Phần mềm hỗ trợ **soạn thảo Hồ sơ mời thầu (E-HSMT) cho gói thầu phần mềm/CNTT** tại
+Việt Nam bằng **RAG + LLM có sẵn (Claude API)** — đồ án cuối môn Deep Learning, bậc
+Thạc sĩ, nhóm 4 người, thực hiện trong 15 ngày.
 
-Xem đặc tả đầy đủ tại [`docs/SPEC.md`](docs/SPEC.md).
+> **Lịch sử dự án:** bản đầu là đồ án solo 7 ngày với kiến trúc đa module tự train
+> (NER/Classifier/Generator fine-tune). Đề cương môn học sau đó đổi hướng sang phạm vi
+> hẹp hơn (chỉ gói phần mềm/CNTT) và cách tiếp cận RAG+LLM (dùng LLM có sẵn, không bắt
+> buộc tự train) — README này mô tả **trạng thái hiện tại** theo hướng mới. Nội dung
+> Phase 1 cũ (kiến trúc 3-tier tự train, dữ liệu TBMT tổng hợp/thật) vẫn còn trong code
+> (`models/ner.py`, `models/classifier.py`, `crawler/`) với vai trò giảm — trích trường
+> từ KHLCNT upload — xem `docs/DATA_CARD.md` và `docs/MODEL_CARD.md` để phân biệt rõ nội
+> dung nào thuộc bản cũ (đánh dấu rõ trong từng mục) và nội dung nào thuộc bản redesign.
+
+Xem đặc tả gốc tại [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — đề cương redesign nằm
+ngoài repo (`de-cuong-hsmt-rag-cntt-phan-mem.pdf`, cung cấp bởi giảng viên).
 
 > ⚠️ **Mọi nội dung do hệ thống sinh ra là dự thảo hỗ trợ soạn thảo** — bắt buộc thẩm
 > định và phê duyệt theo quy định pháp luật trước khi phát hành chính thức. Xem
 > [Nguyên tắc bắt buộc](#nguyên-tắc-thiết-kế-bắt-buộc) bên dưới.
-
----
-
-## Ảnh chụp màn hình
-
-| Trang chủ | Soạn thảo HSMT |
-|---|---|
-| ![Trang chủ](docs/screenshots/01_trang_chu.png) | ![Soạn thảo HSMT](docs/screenshots/02_soan_thao_hsmt.png) |
-
-| Kiểm tra tuân thủ | Xuất và In |
-|---|---|
-| ![Kiểm tra tuân thủ](docs/screenshots/03_kiem_tra_tuan_thu.png) | ![Xuất và In](docs/screenshots/04_xuat_va_in.png) |
 
 ---
 
@@ -37,14 +36,31 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Ghi chú cài đặt:**
-- `paddleocr`/`paddlepaddle` (OCR) có thể không cài được trên một số máy — không sao,
-  hệ thống tự động bỏ qua OCR và chỉ nhận PDF có text layer (xem `ingest/ocr.py`).
+**Dựng kho tri thức RAG (bắt buộc trước khi soạn/hỏi-đáp chất lượng cao):**
+
+```bash
+python scripts/fetch_legal_corpus.py --all      # tải luật thật (đã có sẵn trong data/samples/legal_corpus/)
+python scripts/build_legal_index.py             # build FAISS cho 2 model embedding (vài phút, cần mạng)
+```
+
+**Cấu hình Claude API (tuỳ chọn nhưng khuyến nghị):**
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # Windows: set ANTHROPIC_API_KEY=...
+```
+
+Không có key vẫn chạy được — hệ thống tự rơi xuống chế độ không-LLM (liệt kê trích dẫn
+thật/template-filling, xem [Degraded Mode](#nguyên-tắc-thiết-kế-bắt-buộc)) — nhưng **Mức
+1/Mức 2 sẽ không có câu trả lời/mục soạn tổng hợp bằng tự nhiên ngôn ngữ**, chỉ có trích
+dẫn thô.
+
+**Ghi chú cài đặt khác:**
+- `paddleocr`/`paddlepaddle` (OCR, dùng cho upload KHLCNT dạng scan) có thể không cài
+  được trên một số máy — không sao, hệ thống tự động bỏ qua OCR (xem `ingest/ocr.py`).
 - `weasyprint` cần thư viện hệ thống GTK; nếu thiếu (phổ biến trên Windows), phần mềm
-  **tự động fallback sang ReportLab** — không cần cài thêm gì, PDF vẫn xuất được đúng
-  dấu tiếng Việt (xem `export/pdf.py`).
-- `playwright` (crawler dự phòng): sau khi `pip install`, chạy thêm
-  `playwright install chromium` nếu muốn dùng `MSCBrowserSource`.
+  **tự động fallback sang ReportLab** (xem `export/pdf.py`).
+- `playwright`: sau khi `pip install`, chạy thêm `playwright install chromium` — cần
+  cho việc fetch văn bản luật (`knowledge/legal_fetch.py`, các trang là SPA render JS).
 
 ## Chạy ứng dụng
 
@@ -52,12 +68,9 @@ pip install -r requirements.txt
 streamlit run app/main.py
 ```
 
-Mở trình duyệt tại `http://localhost:8501`. Lần đầu chạy sẽ chưa có tài liệu nào — vào
-**Trang 2 (Nạp KHLCNT)** để bắt đầu, hoặc **Trang 1 (Thu thập dữ liệu)** với nguồn
-`local` để nạp 20 bản ghi mẫu.
-
-**Chạy được cả khi thư mục `models/` trống** (không có checkpoint Tier 1 nào) — đây là
-yêu cầu cốt lõi của đồ án (xem Degraded Mode bên dưới).
+Mở trình duyệt tại `http://localhost:8501`. Bắt đầu ở **Trang 7 — Hỏi-đáp** (Mức 1,
+không cần tài liệu nào) hoặc **Trang 2 — Nạp KHLCNT** rồi **Trang 3 — Soạn thảo HSMT**
+(Mức 2) nếu muốn soạn theo một gói thầu cụ thể.
 
 ## Chạy test
 
@@ -65,121 +78,136 @@ yêu cầu cốt lõi của đồ án (xem Degraded Mode bên dưới).
 pytest
 ```
 
-49 test, bao gồm cả test tích hợp Streamlit (dùng `streamlit.testing.v1.AppTest`) và
-test bắt buộc render đúng dấu tiếng Việt trong PDF.
+~95 test. Phần lớn chạy nhanh (rule-based/mock); một số test (`test_orchestrator.py`,
+Tier 1 mock trong `test_generator.py`/`test_legal_qa.py`) dùng real embedding model —
+lần chạy đầu tải model từ HuggingFace nên chậm hơn (~2 phút), các lần sau dùng cache
+nhanh hơn nhiều.
 
 ---
 
-## Kiến trúc hệ thống
+## Kiến trúc hệ thống (bản redesign RAG+LLM)
 
 ```
-Crawler (M0) ─▶ Ingestion (M1) ─▶ NER (M2) ─▶ Classifier (M3)
-                                       │
-                                       ▼
-                              RAG Retrieval (M4)
-                                       │
-                                       ▼
-                              Generator (M5) ─▶ Compliance Guard (M6)
-                                       │
-                                       ▼
-                        HITL Store (SQLite) ◀─▶ Streamlit GUI (6 trang)
-                                       │
-                                       ▼
-                          Export: PDF / DOCX / In trực tiếp
+OFFLINE — dựng kho tri thức thật
+  Luật Đấu thầu 22/2023/QH15 (hợp nhất) + Nghị định 214/2025/NĐ-CP
+        │  fetch verbatim (Playwright, KHÔNG dùng WebFetch — xem knowledge/legal_fetch.py)
+        ▼  chunk theo Điều/Khoản (rag/chunker.py) — 511 chunk thật
+        ▼  embed bằng 2 model (rag/embedding_models.py) — so sánh không gian biểu diễn
+        ▼  index: FAISS (dense) + BM25 (sparse) — rag/hybrid_retriever.py
+
+ONLINE
+  Mức 1 (Hỏi-đáp)          Mức 2 (Soạn mục HSMT)
+  models/legal_qa.py       models/generator.py + pipeline/orchestrator.py
+        │                         │
+        ▼                         ▼
+  Hybrid retrieve (RRF) + rerank cross-encoder (rag/hybrid_retriever.py)
+        │
+        ▼
+  Claude API sinh câu trả lời/nội dung mục, bắt buộc trích dẫn
+  (generation/claude_client.py) — không có API key thì rơi xuống
+  liệt kê trích dẫn thô/template-filling, KHÔNG BAO GIỜ lỗi
+        │
+        ▼
+  Compliance Guard (models/compliance.py): R1-R3 hạn chế cạnh tranh (câu),
+  R5 thiếu thành phần bắt buộc (tài liệu, đối chiếu Điều 26 NĐ 214/2025/NĐ-CP)
+        │
+        ▼
+  HITL duyệt (hitl/store.py) → Export PDF/DOCX (export/*)
+
+ĐÁNH GIÁ (eval/) — xem Trang 8 (Đánh giá) trên GUI
+  retrieval_eval.py: Recall@k/MRR/nDCG trên 38 câu gán tay (data/eval/)
+  faithfulness_eval.py: LLM-as-judge (Claude) cho faithfulness/completeness
+  embedding_compare.py: t-SNE/UMAP + độ tách biệt intra/inter-Điều
 ```
 
-Chi tiết từng module: xem Mục 6 của [`docs/SPEC.md`](docs/SPEC.md) và
-[`docs/MODEL_CARD.md`](docs/MODEL_CARD.md).
+Chi tiết: [`docs/DATA_CARD.md`](docs/DATA_CARD.md) (nguồn dữ liệu, Mục 10-13 cho phần
+redesign) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) (kiến trúc/kết quả từng phần).
 
 ### Nguyên tắc thiết kế bắt buộc
 
-1. **Degraded Mode (3-tier fallback):** mọi module ML (`autotender/models/*.py`) đều kế
-   thừa `BaseModule` (`models/base.py`) với 3 tầng: Tier 1 (checkpoint fine-tune) → Tier 2
-   (pretrained zero-shot) → Tier 3 (rule-based, luôn thành công). UI hiển thị badge tier
-   đang chạy (🟢/🟡/🔵). **Trạng thái hiện tại: cả 5 module đang chạy Tier 3** vì môi
-   trường phát triển không có GPU/Colab (xem `docs/MODEL_CARD.md`).
-2. **Không bịa đặt:** số liệu (giá gói thầu, thời gian, nguồn vốn) được chèn bằng
-   slot-filling từ trường đã trích xuất, không để mô hình sinh tự do; verifier
-   `verify_numeric_consistency` (trong `models/generator.py`) tự động gắn cờ `R4` nếu
-   phát hiện số liệu không truy vết được nguồn.
-3. **Human-in-the-loop:** không mục nào được coi là hoàn thành nếu chưa qua **Phê
-   duyệt** (`hitl/store.py`). Xuất PDF/DOCX hiển thị cảnh báo rõ ràng nếu còn mục chưa
-   duyệt, kèm phụ lục nhật ký phê duyệt.
-4. **Thu thập dữ liệu có trách nhiệm:** crawler tôn trọng `robots.txt`, rate-limit 1
-   request/2 giây, User-Agent khai báo rõ mục đích nghiên cứu, cache toàn bộ response
-   (xem `crawler/msc_client.py`).
+1. **Luôn chạy được (Degraded Mode):** mọi module sinh/hỏi-đáp đều có 3 tầng —
+   Tier 1 (Claude API + RAG) → Tier 2 (dự phòng, chưa dùng) → Tier 3 (không LLM, luôn
+   thành công). Thiếu `ANTHROPIC_API_KEY` hay lỗi mạng đều tự rơi xuống Tier 3, không
+   làm sập ứng dụng. UI hiển thị badge tier đang chạy.
+2. **Không bịa đặt:** câu trả lời/nội dung sinh ra CHỈ dựa trên trích đoạn luật thật đã
+   truy xuất (system prompt bắt buộc trích dẫn Điều/Khoản); số liệu gói thầu (giá, thời
+   gian, nguồn vốn) chèn bằng slot-filling, verifier `verify_numeric_consistency` gắn cờ
+   `R4` nếu phát hiện số liệu lạ.
+3. **Văn bản pháp luật phải đúng hiệu lực:** phát hiện và sửa một trường hợp thật trong
+   quá trình làm — NĐ 24/2024/NĐ-CP (đề cương gốc liệt kê) đã hết hiệu lực, thay bằng
+   NĐ 214/2025/NĐ-CP — xem `docs/DATA_CARD.md` Mục 10.
+4. **Human-in-the-loop:** không mục nào được coi là hoàn thành nếu chưa qua **Phê
+   duyệt** (`hitl/store.py`).
+5. **Thu thập dữ liệu có trách nhiệm:** tôn trọng `robots.txt` (kể cả disallow riêng cho
+   `ClaudeBot`), rate-limit, cache toàn bộ response.
 
 ---
 
-## Luồng sử dụng (6 trang)
+## Luồng sử dụng (8 trang)
 
-1. **Thu thập dữ liệu** — crawl TBMT (tự động api → browser → local) hoặc dùng 20 bản
-   ghi mẫu có sẵn.
-2. **Nạp KHLCNT** — upload PDF/DOCX/dán văn bản, xem trường trích xuất kèm highlight và
-   độ tin cậy.
-3. **Soạn thảo HSMT** — sinh dự thảo Chương III & V, sửa trực tiếp, so sánh diff, phê
-   duyệt/từ chối từng mục.
-4. **Kiểm tra tuân thủ** — rà soát cờ vi phạm (R1-R4), lọc theo mã quy tắc, phản hồi
-   đúng/dương tính giả.
-5. **Xuất và In** — xem trước, xuất PDF/DOCX, in trực tiếp; cảnh báo nếu còn mục chưa
-   duyệt.
-6. **Bảng điều khiển Model** — xem tier đang chạy + metric từng module (từ
-   `reports/metrics.json`).
+1. **Thu thập dữ liệu** / 2. **Nạp KHLCNT** — (Phase 1) crawl/upload để lấy trường
+   thông tin gói thầu tự động, dùng làm input cho Mức 2.
+3. **Soạn thảo HSMT (Mức 2)** — sinh dự thảo từng mục Chương III/V bằng Claude API+RAG,
+   sửa trực tiếp, phê duyệt/từ chối, kiểm tra đủ thành phần (R5).
+4. **Kiểm tra tuân thủ** — rà soát cờ R1-R5.
+5. **Xuất và In** — xuất PDF/DOCX.
+6. **Bảng điều khiển Model** — tier/metric Phase 1.
+7. **Hỏi-đáp (Mức 1)** — hỏi tự do, trả lời có trích dẫn luật thật.
+8. **Đánh giá** — bảng Recall@k/MRR/nDCG, ablation LLM-only vs RAG, so sánh embedding
+   (t-SNE/UMAP).
 
 ---
 
-## Kết quả đánh giá
+## Kết quả đánh giá (bản redesign)
 
-Chạy `python scripts/evaluate.py` để tái tạo `reports/metrics.json` + biểu đồ trong
-`reports/figures/`. Đánh giá trên **521 bản ghi (501 bản ghi THẬT** từ muasamcong.mpi.gov.vn
-+ dauthau.asia, xem `docs/DATA_CARD.md` mục 8-9). Tóm tắt (Tier 3, xem giới hạn phương pháp
-trong [`docs/DATA_CARD.md`](docs/DATA_CARD.md) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md)):
+Retrieval (38 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
+`docs/DATA_CARD.md` Mục 12):
 
-| Module | Metric | Kết quả (Tier 3) | Baseline |
+| Chế độ | Recall@5 | MRR | nDCG@5 |
 |---|---|---|---|
-| M2 NER | entity-F1 | 0.956 | — |
-| M3 Classifier | macro-F1 | 0.500 | TF-IDF+LogReg: **0.554 ± 0.008** (vượt Tier 3) |
-| M4 Retrieval | proxy Recall@5 | 1.00 | BM25 chính là Tier 3 |
-| M6 Compliance | F1/lớp | 1.00 (OK, R1, R2, R3) | keyword rules chính là Tier 3 |
+| BM25 (sparse) | 0.500 | 0.366 | 0.392 |
+| Dense (vi_bi_encoder) | 0.658 | 0.518 | 0.547 |
+| Hybrid RRF | 0.684 | 0.479 | 0.528 |
+| **Hybrid RRF + rerank** | **0.789** | **0.591** | **0.638** |
 
-**Phát hiện đáng chú ý:** ở quy mô 521 mẫu, baseline thống kê (TF-IDF+LogReg) đã vượt qua
-Tier 3 rule-based cho M3 — đúng dự đoán lý thuyết (rule cố định không cải thiện theo dữ liệu,
-mô hình thống kê thì có), minh chứng cụ thể cho lý do cần nâng cấp lên Tier 1. Xem
-`docs/MODEL_CARD.md` mục M3.
+So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`): model tiếng
+Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt hơn model đa
+ngôn ngữ (`multilingual_minilm`, 384d) — 0.139 so với 0.123 — dù similarity tuyệt đối
+thấp hơn; khớp với kết quả Recall@k đo được ở trên.
 
-**Ablation:** bỏ retrieval → citation 5→0; bỏ M6 → cờ phát hiện 6→0. Chi tiết đầy đủ
-trong `reports/metrics.json` và `docs/MODEL_CARD.md`.
+Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`)
+**cần `ANTHROPIC_API_KEY`** — môi trường phát triển hiện tại chưa cấu hình billing nên
+phần này báo `"status": "N/A"` thay vì số liệu giả — xem `docs/DATA_CARD.md` Mục 13.
 
 ---
 
-## Giới hạn đã biết
+## Giới hạn đã biết (bản redesign)
 
-- **Chưa có checkpoint Tier 1 thật** cho cả 5 module — môi trường phát triển đồ án
-  không có GPU/Colab trong phạm vi 7 ngày. Notebooks `notebooks/01-04` đã viết sẵn, sẵn
-  sàng chạy trên Colab (xem hướng dẫn trong từng notebook).
-- **Crawler thật từ `muasamcong.mpi.gov.vn` (`MSCApiSource`/`MSCBrowserSource`)** — endpoint
-  cần CSRF token động lấy qua trình duyệt thật; đã lấy được 12 bản ghi thật thí điểm nhưng
-  tự động hoá quy mô lớn bị giới hạn bởi WAF (xem `docs/DATA_CARD.md` mục 2 & 8).
-  `LocalSampleSource` (20 mẫu tổng hợp) đảm bảo phần mềm luôn demo được.
-- **Nguồn dữ liệu thật thứ hai (`dauthau.asia`)**: crawl thành công **200 bản ghi TBMT
-  thật** (`data/samples/real_dauthau_asia_sample.jsonl`) qua `scripts/crawl_dauthau_asia.py`
-  — không gặp giới hạn WAF như nguồn trên, nhưng chỉ có các trường cấp danh sách (không có
-  giá gói thầu/nguồn vốn). Xem điều khoản sử dụng và giới hạn đầy đủ trong
-  `docs/DATA_CARD.md` mục 9.
-- **Corpus RAG** là dữ liệu minh hoạ/tổng hợp, không phải văn bản pháp luật thật — xem
-  cảnh báo `[MINH HỌA]` hiển thị trên UI và chi tiết trong `docs/DATA_CARD.md` mục 4.
-- **`notebooks/05_train_compliance.ipynb`** chưa được tạo (ngoài phạm vi 7 ngày) — cần
-  dữ liệu gán nhãn quy mô lớn hơn cho M6, xem `docs/MODEL_CARD.md`.
+- **Thông tư 01/2024 & 22/2024/TT-BKHĐT** (mẫu HSMT hàng hóa) — chưa đưa vào corpus do
+  trang nguồn có lỗi lặp/thiếu nội dung khi render; các thông tư này chủ yếu chứa mẫu
+  biểu Word/Excel, vốn không phù hợp với pipeline trích dẫn theo Điều/Khoản — xem
+  `docs/DATA_CARD.md` Mục 10.3.
+- **Nghị định 45/2026/NĐ-CP** — chỉ có bản scan ảnh (không có lớp text), OCR nằm ngoài
+  phạm vi đề cương nên không xử lý — Mục 10.4.
+- **Không tải được HSMT phần mềm thật đã duyệt** — xác nhận đúng rủi ro đã dự đoán:
+  cần đăng nhập + Windows-only Client Agent trên hệ thống chính thức — Mục 11.
+- **Faithfulness/ablation LLM-only vs RAG chưa có số liệu thật** — cần `ANTHROPIC_API_KEY`
+  (xem trên).
+- Nội dung Phase 1 cũ (`docs/DATA_CARD.md` Mục 1-9, `docs/MODEL_CARD.md` phần đầu) vẫn
+  giữ nguyên giới hạn đã ghi khi đó (chưa có checkpoint Tier 1 thật cho NER/Classifier...).
 
 ---
 
 ## Cấu trúc thư mục
 
-Xem Mục 4 của [`docs/SPEC.md`](docs/SPEC.md).
+Xem Mục 4 của [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — thư mục mới thêm cho redesign:
+`src/autotender/knowledge/` (fetch luật), `src/autotender/generation/` (Claude client),
+`src/autotender/eval/` (retrieval/faithfulness/embedding eval), `data/samples/legal_corpus/`,
+`data/eval/`, `data/index/` (build artifact, gitignore).
 
 ## Tài liệu liên quan
 
-- [`docs/SPEC.md`](docs/SPEC.md) — đặc tả đầy đủ (mục tiêu, kiến trúc, kế hoạch 7 ngày)
-- [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — nguồn gốc và giới hạn của dữ liệu
-- [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — kiến trúc, tier, metric từng module ML
-- [`docs/COLAB_GUIDE.md`](docs/COLAB_GUIDE.md) — hướng dẫn chạy `notebooks/01-04` trên Google Colab để tạo checkpoint Tier 1
+- [`docs/SPEC.md`](docs/SPEC.md) — đặc tả Phase 1 gốc
+- [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — nguồn gốc/giới hạn dữ liệu (Mục 10-13 cho redesign)
+- [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — kiến trúc, tier, metric (phần cuối cho redesign)
+- [`docs/COLAB_GUIDE.md`](docs/COLAB_GUIDE.md) — hướng dẫn Colab (Phase 1, không bắt buộc cho redesign)
