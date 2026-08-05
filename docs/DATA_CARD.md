@@ -290,3 +290,39 @@ chạy tốt chỉ với luật thật (Mục 10); phần "mẫu HSMT phần m�
 thống — nếu cần minh hoạ cấu trúc gói thầu phần mềm thật cho báo cáo, có thể trích riêng danh
 sách 16 bản ghi này (tên gói, chủ đầu tư, cấu trúc chương — không phải nội dung file) làm ví
 dụ định tính, không đưa vào corpus RAG dưới dạng trích dẫn có căn cứ.
+
+---
+
+## 12. Tập câu hỏi gán tay đánh giá retrieval (`data/eval/retrieval_queries.jsonl`)
+
+**38 câu hỏi** biên soạn thủ công (không sinh tự động), mỗi câu gán nhãn `(law_id, dieu_so)`
+— Điều đúng phải được truy xuất, dựa trực tiếp trên tiêu đề Điều thật trong corpus (Mục 10)
+để đảm bảo nhãn đúng. Chỉ chọn các Điều có tiêu đề KHÔNG trùng lặp trong cùng văn bản (một số
+Điều của Nghị định 214/2025 dùng lại tiêu đề "Lập hồ sơ mời thầu"/"Quy trình chi tiết" cho
+từng loại gói thầu khác nhau — tránh dùng làm nhãn vàng vì nhiều đáp án đều "đúng", gây nhiễu
+kết quả đo). Phủ đa dạng chủ đề: nguyên tắc chung, hình thức lựa chọn nhà thầu, nội dung/thời
+gian HSMT, phương pháp đánh giá, hợp đồng, ưu đãi, xử lý vi phạm.
+
+Đây là bước thay thế đúng nghĩa cho proxy `bm25_proxy_recall_at_5` của bản cũ (Mục 5) —
+`src/autotender/eval/retrieval_eval.py` cài đặt Recall@k, MRR, nDCG@k (`k ∈ {1,3,5,10}`),
+tính trên "Điều đúng có nằm trong top-k hay không" (một Điều có thể bị chunk thành nhiều
+mảnh theo Khoản — tính đúng nếu BẤT KỲ mảnh nào thuộc đúng Điều xuất hiện trong top-k).
+
+**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, xem
+`reports/retrieval_metrics.json`):
+
+| Chế độ | Recall@5 | MRR | nDCG@5 | Thời gian (38 câu) |
+|---|---|---|---|---|
+| BM25 (sparse) | 0.500 | 0.366 | 0.392 | 0.5s |
+| Dense (bi-encoder) | 0.658 | 0.518 | 0.547 | 12.8s |
+| Hybrid RRF (dense+sparse) | 0.684 | 0.479 | 0.528 | 2.1s |
+| Hybrid RRF + rerank (cross-encoder) | **0.789** | **0.591** | **0.638** | 666.2s |
+
+**Nhận xét:** BM25 đơn lẻ yếu nhất (đúng như kỳ vọng — không hiểu ngữ nghĩa, chỉ khớp từ);
+dense cải thiện rõ; hybrid RRF cải thiện thêm Recall@5 nhưng MRR/nDCG@5 giảm nhẹ so với
+dense-only (dấu hiệu BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn giữ nó trong top-5);
+rerank cross-encoder cải thiện mạnh nhất trên mọi chỉ số — đúng với quan sát định tính ở
+`scripts/smoke_test_retrieval.py` — nhưng **chi phí thời gian rất cao** (666s cho 38 câu ×
+50 ứng viên = 1.900 lượt suy luận cross-encoder trên CPU, ~17,5s/câu) — cần cân nhắc giữa
+chất lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn
+mục HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
