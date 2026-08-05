@@ -88,7 +88,7 @@ class QAAnswer(BaseModel):
 class ComplianceFlag(BaseModel):
     """Cờ tuân thủ do module M6 (Compliance Guard) gắn vào một câu sinh ra."""
 
-    rule_code: Literal["R1", "R2", "R3", "R4", "OK"]
+    rule_code: Literal["R1", "R2", "R3", "R4", "R5", "OK"]
     severity: Literal["cao", "trung_binh", "thap"]
     sentence: str
     explanation: str

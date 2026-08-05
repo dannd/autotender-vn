@@ -4,10 +4,11 @@ Tier 1: cross-encoder XLM-R fine-tuned, checkpoint `models/compliance_xlmr`.
 Tier 2: cross-encoder XLM-R pretrained (zero-shot suy luận theo prompt câu hỏi).
 Tier 3: từ điển nhãn hiệu phổ biến + regex ngưỡng bất hợp lý — LUÔN THÀNH CÔNG.
 
-5 lớp: R1 (nhãn hiệu/xuất xứ cụ thể), R2 (năng lực/doanh thu bất hợp lý),
+6 lớp: R1 (nhãn hiệu/xuất xứ cụ thể), R2 (năng lực/doanh thu bất hợp lý),
 R3 (thông số "may đo"), R4 (số liệu sai lệch KHLCNT — đã xử lý riêng ở M5 verifier),
-OK (hợp lệ). Recall được ưu tiên hơn precision (Mục 6/M6: bỏ sót vi phạm nguy hiểm
-hơn báo động giả).
+R5 (thiếu thành phần bắt buộc — `check_document_completeness`, xem bên dưới), OK (hợp
+lệ). Recall được ưu tiên hơn precision (Mục 6/M6: bỏ sót vi phạm nguy hiểm hơn báo
+động giả).
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from autotender.config import get_models_settings, resolve_path
 from autotender.models.base import BaseModule, TierUnavailableError
-from autotender.schemas import ComplianceFlag, RetrievedChunk
+from autotender.schemas import ComplianceFlag, HSMTSection, RetrievedChunk
 from autotender.utils.vn_text import split_sentences
 
 
@@ -184,4 +185,69 @@ _LABEL_DESCRIPTIONS = {
     "OK": "hợp lệ, không vi phạm",
 }
 
-_SEVERITY = {"R1": "cao", "R2": "cao", "R3": "cao", "R4": "cao", "OK": "thap"}
+_SEVERITY = {"R1": "cao", "R2": "cao", "R3": "cao", "R4": "cao", "R5": "cao", "OK": "thap"}
+
+# Phải khớp với `models/generator.py::_PLACEHOLDER` — trùng lặp thay vì import tên "private"
+# giữa 2 module, tránh phụ thuộc chéo không cần thiết.
+_PLACEHOLDER_MARKER = "[CẦN NGƯỜI DÙNG BỔ SUNG"
+
+# Điều 44 Luật Đấu thầu 22/2023/QH15 (bản hợp nhất) đã được đơn giản hoá chỉ còn 4 khoản
+# tổng quát, giao Chính phủ quy định chi tiết (Khoản 4) — nội dung HSMT chi tiết THẬT SỰ
+# nằm ở Điều 26 Khoản 2 Nghị định 214/2025/NĐ-CP (gói hàng hóa), liệt kê đủ 7 thành phần
+# a-g. Đây là căn cứ ĐÚNG với luật hiện hành — không dùng lại mô tả "7 thành phần Điều 44"
+# cũ trong đề cương gốc, vốn dựa trên NĐ 24/2024/NĐ-CP đã hết hiệu lực (xem docs/DATA_CARD.md
+# Mục 10). Chỉ liệt kê phần trong PHẠM VI hệ thống hỗ trợ soạn (Chương III + Chương V —
+# xem Mục "Việc KHÔNG làm" trong kế hoạch: không sinh trọn bộ HSMT gồm cả Chương I/II/IV/VI).
+REQUIRED_HSMT_COMPONENTS: dict[str, dict[str, str]] = {
+    "chuong_III": {
+        "muc_1": "Tiêu chuẩn đánh giá về năng lực, kinh nghiệm — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Tiêu chuẩn đánh giá về kỹ thuật — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
+        "muc_3": "Tiêu chuẩn đánh giá về tài chính/giá — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
+        "muc_4": "Quy định về nhãn hiệu, xuất xứ hàng hóa — Điều 26 Khoản 9, Nghị định 214/2025/NĐ-CP",
+    },
+    "chuong_V": {
+        "muc_1": "Phạm vi cung cấp — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Yêu cầu về thông số kỹ thuật — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
+        "muc_3": "Yêu cầu về bảo hành, bảo trì — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
+        "muc_4": "Yêu cầu về tiến độ thực hiện — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
+    },
+}
+
+
+def check_document_completeness(sections: list[HSMTSection]) -> list[ComplianceFlag]:
+    """Kiểm tra đủ thành phần bắt buộc (trong phạm vi Chương III + Chương V mà hệ thống hỗ
+    trợ soạn) theo Điều 26 Khoản 2 Nghị định 214/2025/NĐ-CP — bản chi tiết hoá hiện hành của
+    Điều 44 Luật Đấu thầu. Đây là kiểm tra CẤP TÀI LIỆU (mục nào đã/chưa soạn), khác với
+    `check_text` (kiểm tra CẤP CÂU, R1-R3) — luôn chạy được, không qua model, không phải
+    Tier 1/2/3 vì bản chất là đối chiếu danh sách, không phải suy luận.
+    """
+    present = {s.section_id: s for s in sections}
+    flags: list[ComplianceFlag] = []
+    for chapter, mucs in REQUIRED_HSMT_COMPONENTS.items():
+        for muc_key, legal_basis in mucs.items():
+            section_id = f"{chapter}.{muc_key}"
+            section = present.get(section_id)
+            if section is None:
+                flags.append(
+                    ComplianceFlag(
+                        rule_code="R5",
+                        severity="cao",
+                        sentence=f"[Thiếu mục {section_id}]",
+                        explanation=f"Chưa soạn mục bắt buộc theo {legal_basis}.",
+                        evidence=[],
+                        confidence=1.0,
+                    )
+                )
+                continue
+            if not section.current_text.strip() or _PLACEHOLDER_MARKER in section.current_text:
+                flags.append(
+                    ComplianceFlag(
+                        rule_code="R5",
+                        severity="trung_binh",
+                        sentence=section.current_text[:200],
+                        explanation=f"Mục {section_id} còn thiếu thông tin (placeholder chưa điền), theo {legal_basis}.",
+                        evidence=section.citations,
+                        confidence=0.9,
+                    )
+                )
+    return flags

@@ -14,11 +14,11 @@ from autotender.ingest.docx_reader import extract_docx_text
 from autotender.ingest.ocr import ocr_image_bytes
 from autotender.ingest.pdf_reader import extract_pdf_text
 from autotender.models.classifier import ClassificationResult, ClassifierModule
-from autotender.models.compliance import ComplianceModule
+from autotender.models.compliance import ComplianceModule, check_document_completeness
 from autotender.models.generator import SECTION_DEFINITIONS, GeneratorModule
 from autotender.models.ner import NERModule
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
-from autotender.schemas import ExtractedField, HSMTDocument, HSMTSection, TenderNotice
+from autotender.schemas import ComplianceFlag, ExtractedField, HSMTDocument, HSMTSection, TenderNotice
 from autotender.utils.vn_text import normalize_document_text
 
 
@@ -84,3 +84,14 @@ class Orchestrator:
         kỹ thuật, giá, nhãn hiệu/xuất xứ), mỗi mục kèm trích dẫn + cờ tuân thủ."""
         section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith("chuong_III.")]
         return [self.generate_section(section_id, fields) for section_id in section_ids]
+
+    def generate_chuong_v(self, fields: list[ExtractedField]) -> list[HSMTSection]:
+        """Sinh đủ 4 mục của Chương V — Yêu cầu về kỹ thuật (phạm vi cung cấp, thông số kỹ
+        thuật, bảo hành/bảo trì, tiến độ), mỗi mục kèm trích dẫn + cờ tuân thủ."""
+        section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith("chuong_V.")]
+        return [self.generate_section(section_id, fields) for section_id in section_ids]
+
+    # -- Cờ R5: kiểm tra đủ thành phần bắt buộc (Điều 26 Khoản 2 NĐ 214/2025/NĐ-CP,
+    # chi tiết hoá Điều 44 Luật Đấu thầu) trong phạm vi Chương III + Chương V --------
+    def check_completeness(self, sections: list[HSMTSection]) -> list[ComplianceFlag]:
+        return check_document_completeness(sections)

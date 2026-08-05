@@ -29,7 +29,7 @@ generator:
 compliance:
   tier1_checkpoint: "models/compliance_xlmr"
   tier2_model: "xlm-roberta-base"
-  rule_codes: ["R1", "R2", "R3", "R4", "OK"]
+  rule_codes: ["R1", "R2", "R3", "R4", "R5", "OK"]
   brand_dictionary: ["Cisco", "Dell", "HP", "Hewlett Packard", "Samsung", "IBM", "Lenovo", "Intel", "Microsoft", "Apple", "Huawei", "Sony", "Canon", "Epson", "Fujitsu", "Oracle", "SAP"]
   revenue_ratio_threshold: 3.0
 

@@ -40,3 +40,16 @@ def test_orchestrator_full_flow_from_text_to_generated_sections():
     assert all(s.section_id.startswith("chuong_III.") for s in chuong_iii_sections)
     assert all(s.status == "draft" for s in chuong_iii_sections)
     assert all(len(s.citations) > 0 for s in chuong_iii_sections)
+
+    chuong_v_sections = orch.generate_chuong_v(fields)
+    assert len(chuong_v_sections) == 4
+    assert all(s.section_id.startswith("chuong_V.") for s in chuong_v_sections)
+
+    # Chỉ soạn Chương III (thiếu Chương V) -> phải bị gắn cờ R5 cho 4 mục Chương V còn thiếu
+    incomplete_flags = orch.check_completeness(chuong_iii_sections)
+    assert len(incomplete_flags) == 4
+    assert all(f.rule_code == "R5" for f in incomplete_flags)
+
+    # Soạn đủ cả Chương III + Chương V -> không còn cờ R5 nào
+    complete_flags = orch.check_completeness(chuong_iii_sections + chuong_v_sections)
+    assert complete_flags == []
