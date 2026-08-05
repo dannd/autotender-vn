@@ -17,16 +17,16 @@ from autotender.models.classifier import ClassificationResult, ClassifierModule
 from autotender.models.compliance import ComplianceModule
 from autotender.models.generator import SECTION_DEFINITIONS, GeneratorModule
 from autotender.models.ner import NERModule
-from autotender.models.retriever import RetrieverModule
+from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import ExtractedField, HSMTDocument, HSMTSection, TenderNotice
 from autotender.utils.vn_text import normalize_document_text
 
 
 class Orchestrator:
-    def __init__(self, corpus_dir: str | Path | None = None):
+    def __init__(self, retriever: HybridLegalRetriever | None = None):
         self.ner = NERModule()
         self.classifier = ClassifierModule()
-        self.retriever = RetrieverModule(corpus_dir)
+        self.retriever = retriever or HybridLegalRetriever()
         self.generator = GeneratorModule(self.retriever)
         self.compliance = ComplianceModule()
 
@@ -77,3 +77,10 @@ class Orchestrator:
 
     def generate_all_sections(self, fields: list[ExtractedField]) -> list[HSMTSection]:
         return [self.generate_section(section_id, fields) for section_id in SECTION_DEFINITIONS]
+
+    # -- Mức 2 (đề cương RAG+LLM): soạn trọn Chương III end-to-end -------------
+    def generate_chuong_iii(self, fields: list[ExtractedField]) -> list[HSMTSection]:
+        """Sinh đủ 4 mục của Chương III — Tiêu chuẩn đánh giá E-HSDT (năng lực-kinh nghiệm,
+        kỹ thuật, giá, nhãn hiệu/xuất xứ), mỗi mục kèm trích dẫn + cờ tuân thủ."""
+        section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith("chuong_III.")]
+        return [self.generate_section(section_id, fields) for section_id in section_ids]

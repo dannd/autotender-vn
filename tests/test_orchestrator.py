@@ -34,3 +34,9 @@ def test_orchestrator_full_flow_from_text_to_generated_sections():
 
     all_sections = orch.generate_all_sections(fields)
     assert len(all_sections) == 8
+
+    chuong_iii_sections = orch.generate_chuong_iii(fields)
+    assert len(chuong_iii_sections) == 4
+    assert all(s.section_id.startswith("chuong_III.") for s in chuong_iii_sections)
+    assert all(s.status == "draft" for s in chuong_iii_sections)
+    assert all(len(s.citations) > 0 for s in chuong_iii_sections)
