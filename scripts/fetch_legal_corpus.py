@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from autotender.config import resolve_path  # noqa: E402
-from autotender.knowledge.legal_fetch import LegalDocSource, fetch_and_parse  # noqa: E402
+from autotender.knowledge.legal_fetch import LegalDocSource, fetch_and_parse, fetch_and_parse_gxd  # noqa: E402
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 from autotender.utils.logging import get_logger  # noqa: E402
 
@@ -56,6 +56,25 @@ SOURCES: dict[str, LegalDocSource] = {
     ),
 }
 
+# Nguồn cần parse theo cấu trúc THẺ HTML thật (không phải quét text phẳng) — trang có
+# heading Điều lặp/thiếu do lỗi biên soạn nguồn, xem docstring
+# `knowledge.legal_fetch.parse_gxd_theme_articles`. Đăng ký riêng vì dùng
+# `fetch_and_parse_gxd(url, law_id, law_name, ...)` thay vì `LegalDocSource`.
+GXD_HTML_SOURCES: dict[str, dict] = {
+    "tt_01_2024_bkhdt": {
+        "law_name": "Thông tư 01/2024/TT-BKHĐT (hướng dẫn cung cấp/đăng tải thông tin đấu thầu, mẫu hồ sơ)",
+        "url": "https://dauthau.gxd.vn/van-ban/dau-thau/thong-tu-01-2024-TT-BKHDT.html",
+        "initial_chuong_so": "I",
+        "initial_chuong_title": "QUY ĐỊNH CHUNG",
+    },
+    "tt_22_2024_bkhdt": {
+        "law_name": "Thông tư 22/2024/TT-BKHĐT (thay Thông tư 06/2024/TT-BKHĐT, hướng dẫn cung cấp/đăng tải thông tin đấu thầu, mẫu hồ sơ)",
+        "url": "https://dauthau.gxd.vn/van-ban/dau-thau/thong-tu-22-2024-TT-BKHDT.html",
+        "initial_chuong_so": "I",
+        "initial_chuong_title": "QUY ĐỊNH CHUNG",
+    },
+}
+
 
 def save_articles(law_id: str, articles: list) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -67,20 +86,27 @@ def save_articles(law_id: str, articles: list) -> Path:
 
 
 def main() -> None:
+    all_ids = list(SOURCES) + list(GXD_HTML_SOURCES)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--law", choices=list(SOURCES), help="Chỉ fetch 1 văn bản")
+    parser.add_argument("--law", choices=all_ids, help="Chỉ fetch 1 văn bản")
     parser.add_argument("--all", action="store_true", help="Fetch tất cả văn bản đã đăng ký")
     args = parser.parse_args()
 
     if not args.law and not args.all:
         parser.error("Cần chỉ định --law <id> hoặc --all")
 
-    law_ids = list(SOURCES) if args.all else [args.law]
+    law_ids = all_ids if args.all else [args.law]
 
     for law_id in law_ids:
-        source = SOURCES[law_id]
         try:
-            articles = fetch_and_parse(source)
+            if law_id in SOURCES:
+                articles = fetch_and_parse(SOURCES[law_id])
+            else:
+                cfg = GXD_HTML_SOURCES[law_id]
+                articles = fetch_and_parse_gxd(
+                    cfg["url"], law_id, cfg["law_name"],
+                    initial_chuong_so=cfg.get("initial_chuong_so"), initial_chuong_title=cfg.get("initial_chuong_title"),
+                )
         except Exception as e:  # noqa: BLE001
             logger.error("Fetch/parse thất bại cho %s: %s", law_id, e)
             continue

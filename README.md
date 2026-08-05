@@ -165,14 +165,14 @@ Retrieval (38 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
 
 | Chế độ | Recall@5 | MRR | nDCG@5 |
 |---|---|---|---|
-| BM25 (sparse) | 0.500 | 0.366 | 0.392 |
+| BM25 (sparse) | 0.500 | 0.343 | 0.379 |
 | Dense (vi_bi_encoder) | 0.658 | 0.518 | 0.547 |
-| Hybrid RRF | 0.684 | 0.479 | 0.528 |
-| **Hybrid RRF + rerank** | **0.789** | **0.591** | **0.638** |
+| Hybrid RRF | 0.658 | 0.481 | 0.519 |
+| **Hybrid RRF + rerank** | **0.789** | **0.584** | **0.633** |
 
 So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`): model tiếng
 Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt hơn model đa
-ngôn ngữ (`multilingual_minilm`, 384d) — 0.139 so với 0.123 — dù similarity tuyệt đối
+ngôn ngữ (`multilingual_minilm`, 384d) — 0.145 so với 0.138 — dù similarity tuyệt đối
 thấp hơn; khớp với kết quả Recall@k đo được ở trên.
 
 Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`)
@@ -183,10 +183,10 @@ phần này báo `"status": "N/A"` thay vì số liệu giả — xem `docs/DATA
 
 ## Giới hạn đã biết (bản redesign)
 
-- **Thông tư 01/2024 & 22/2024/TT-BKHĐT** (mẫu HSMT hàng hóa) — chưa đưa vào corpus do
-  trang nguồn có lỗi lặp/thiếu nội dung khi render; các thông tư này chủ yếu chứa mẫu
-  biểu Word/Excel, vốn không phù hợp với pipeline trích dẫn theo Điều/Khoản — xem
-  `docs/DATA_CARD.md` Mục 10.3.
+- **Thông tư 01/2024 & 22/2024/TT-BKHĐT** — đã đưa vào corpus (22/32 và 26/33 Điều, xem
+  `docs/DATA_CARD.md` Mục 10.3) qua parser HTML riêng viết để xử lý lỗi heading lặp/thiếu
+  phía nguồn; các mẫu biểu Word/Excel đi kèm 2 thông tư vẫn nằm ngoài phạm vi corpus RAG
+  (không phù hợp pipeline trích dẫn theo Điều/Khoản).
 - **Nghị định 45/2026/NĐ-CP** — chỉ có bản scan ảnh (không có lớp text), OCR nằm ngoài
   phạm vi đề cương nên không xử lý — Mục 10.4.
 - **Không tải được HSMT phần mềm thật đã duyệt** — xác nhận đúng rủi ro đã dự đoán:

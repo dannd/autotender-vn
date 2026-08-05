@@ -164,21 +164,22 @@ Nghị định 24/2024 đã hết hiệu lực). Bảng ablation LLM-only vs RAG
 
 Theo đúng hướng đề cương mới: "Deep Learning" ở đây thể hiện qua **phân tích/đánh giá** các
 mạng nơ-ron pretrained (embedding, cross-encoder), KHÔNG qua việc tự huấn luyện. Chạy
-`scripts/analyze_embeddings.py` trên 511 chunk của kho tri thức thật (`data/samples/legal_corpus/`),
-so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`):
+`scripts/analyze_embeddings.py` trên 587 chunk của kho tri thức thật (`data/samples/legal_corpus/` —
+Luật + Nghị định 214/2025 + 2 Thông tư, xem `docs/DATA_CARD.md` Mục 10), so sánh 2 model
+embedding đã đăng ký (`rag/embedding_models.py`):
 
 | Model | Kiến trúc/dữ liệu train | Chiều | intra-Điều (TB) | inter-Điều (TB) | Độ tách biệt |
 |---|---|---|---|---|---|
-| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4784 | 0.3391 | **0.1393** |
-| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6625 | 0.5391 | 0.1233 |
+| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4794 | 0.3341 | **0.1453** |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6608 | 0.5228 | 0.1380 |
 
 **"Độ tách biệt"** = cosine similarity trung bình giữa các chunk CÙNG một Điều (intra) trừ
 đi similarity trung bình giữa các chunk KHÁC Điều (inter) — không gian biểu diễn "tốt cho
 retrieval" phải có độ tách biệt cao (các đoạn cùng chủ đề pháp lý gần nhau hơn hẳn các đoạn
 khác chủ đề). **Kết quả:** dù model đa ngôn ngữ có similarity tuyệt đối cao hơn hẳn ở cả 2
-nhóm (0.66/0.54 so với 0.48/0.34 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
+nhóm (0.66/0.52 so với 0.48/0.33 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
 nghĩa tuyệt đối), model tiếng Việt chuyên biệt lại có **độ tách biệt tương đối cao hơn**
-(0.1393 > 0.1233) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
+(0.1453 > 0.1380) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
 similarity tuyệt đối thấp hơn. Kết quả này **khớp** với bảng Recall@k/MRR/nDCG đo trực tiếp
 qua truy vấn thật (`docs/DATA_CARD.md` Mục 12, chạy trên `vi_bi_encoder`: Recall@5=0.658
 dense-only) — cả 2 phép đo (độc lập, một dựa trên cấu trúc không gian embedding, một dựa

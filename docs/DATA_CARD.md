@@ -218,6 +218,8 @@ bảo hộ quyền tác giả (Điều 15 Luật Sở hữu trí tuệ VN) nên 
 |---|---|---|---|
 | Luật Đấu thầu 22/2023/QH15 (hợp nhất 57/2024, 90/2025) | `luat_22_2023_qh15.jsonl` | 90/93 (xem giới hạn dưới) | dauthau.gxd.vn |
 | Nghị định 214/2025/NĐ-CP (thay NĐ 24/2024/NĐ-CP) | `nd_214_2025_ndcp.jsonl` | 145/146 | dauthau.gxd.vn |
+| Thông tư 01/2024/TT-BKHĐT | `tt_01_2024_bkhdt.jsonl` | 22/~32 (xem Mục 10.3) | dauthau.gxd.vn (HTML) |
+| Thông tư 22/2024/TT-BKHĐT | `tt_22_2024_bkhdt.jsonl` | 26/33 (xem Mục 10.3) | dauthau.gxd.vn (HTML) |
 
 **Phát hiện quan trọng — NĐ 24/2024/NĐ-CP đã hết hiệu lực:** lần fetch đầu tiên nhắm vào
 Nghị định 24/2024/NĐ-CP (đúng như đề cương liệt kê), nhưng khi đối chiếu nội dung Điều 44
@@ -237,16 +239,26 @@ theo tên văn bản nêu trong đề cương gốc.
    xuất hiện trong text hiển thị (`inner_text`) dù có xuất hiện dưới dạng link neo (anchor)
    trên trang — dấu hiệu của một phần tử DOM bị ẩn bởi CSS/JS (không phải lỗi parser). Đây là
    điều khoản về ngày hiệu lực, không phải nội dung nghiệp vụ cần cho việc soạn HSMT.
-3. **Thông tư 01/2024/TT-BKHĐT và 22/2024/TT-BKHĐT — CHƯA đưa vào corpus**: trang nguồn
-   (dauthau.gxd.vn) cho 2 thông tư này bị lặp/chồng nội dung giữa các heading "Điều N."
-   (một số đoạn xuất hiện 2 lần, một số heading Điều bị thiếu — khác hẳn hành vi sạch của
-   trang Luật/Nghị định), cần thêm công sức xử lý riêng (vd parse trực tiếp từ HTML thay vì
-   `inner_text`, hoặc tìm nguồn khác) mà nhóm chưa ưu tiên trong 15 ngày vì đây là 2 văn bản
-   phụ (quy định thủ tục nộp/đăng tải hồ sơ qua Hệ thống mạng đấu thầu quốc gia — không phải
-   căn cứ pháp lý cho nội dung HSMT cần trích dẫn khi soạn thảo) — nội dung chính giá trị
-   nhất của 2 thông tư này (42+23 **mẫu hồ sơ** E-HSMT dạng Word/Excel) vốn dĩ không phù hợp
-   với pipeline trích dẫn theo Điều/Khoản, sẽ được xử lý riêng như template tham khảo cho
-   module sinh (M5) nếu còn thời gian, không phải như chunk RAG có trích dẫn pháp lý.
+3. **Thông tư 01/2024/TT-BKHĐT và 22/2024/TT-BKHĐT — ĐÃ đưa vào corpus qua parser HTML
+   riêng**: lần thử đầu (quét text phẳng qua `inner_text()`, giống Luật/Nghị định) thất
+   bại vì trang có heading "Điều N." lặp/thiếu do lỗi biên soạn — xác minh trực tiếp qua
+   HTML thô (không phải lỗi parser): (a) một số Điều có heading `<h3>` xuất hiện 2 lần
+   liên tiếp, và ngay cả bản "sạch" hơn cũng lẫn nội dung Điều liền kề ở ranh giới; (b)
+   một số Điều hoàn toàn không có heading `<h3>` trong nội dung thật (chỉ có trong
+   sidebar điều hướng), khiến nội dung của nó (nếu có) tự động dồn vào Điều liền trước.
+   Giải pháp: viết `parse_gxd_theme_articles()` (`knowledge/legal_fetch.py`) quét trực
+   tiếp theo cấu trúc thẻ HTML (`<h2>`=Chương, `<h3>`=Điều, `<p>/<ul>/<ol>`=nội dung,
+   heading thật lấy từ `a.header-anchor` để bỏ qua text nút "Copy đoạn/Ghi chú" — đây
+   cũng là nguồn gốc thật của ký tự "⋮" từng thấy khi quét text phẳng, không phải lỗi
+   trang), kèm 2 lớp bảo vệ an toàn: Điều có heading lặp bị LOẠI BỎ HOÀN TOÀN (không đủ
+   căn cứ chọn đúng bản), Điều dài bất thường (>2000 từ, dấu hiệu trộn nội dung Điều
+   thiếu heading liền sau) cũng bị loại — ưu tiên đúng nguyên tắc "không bịa đặt"/không
+   trích dẫn sai hơn là đầy đủ. Kết quả: **22/32 Điều (TT 01/2024)** và **26/33 Điều (TT
+   22/2024)** trích xuất sạch, đã kiểm tra thủ công không còn nội dung trộn lẫn. Các
+   Điều còn thiếu là giới hạn nguồn có thật, không phải lỗi xử lý. Nội dung giá trị nhất
+   của 2 thông tư (42+23 **mẫu hồ sơ** E-HSMT dạng Word/Excel) vẫn nằm ngoài phạm vi
+   corpus RAG (không phù hợp pipeline trích dẫn theo Điều/Khoản), có thể xử lý riêng làm
+   template tham khảo cho module sinh (M5) nếu còn thời gian.
 4. **Nghị định 45/2026/NĐ-CP — KHÔNG lấy được, ngoài phạm vi có chủ đích**: bản PDF chính
    thức duy nhất tìm được (`datafiles.chinhphu.vn/cpp/files/vbpq/2026/01/45-ndcp.signed.pdf`)
    là **văn bản scan dạng ảnh** (73 trang, mỗi trang 1 ảnh TIFF, `pypdf` trích xuất được 0 ký
@@ -255,11 +267,10 @@ theo tên văn bản nêu trong đề cương gốc.
    áp dụng mẫu HSMT mua sắm hàng hoá) chỉ được ghi nhận qua tóm tắt tìm kiếm web, KHÔNG đưa
    vào corpus RAG dưới dạng trích dẫn — tránh vi phạm nguyên tắc "Không bịa đặt".
 
-**Kết luận:** corpus hiện tại (Luật + Nghị định 214/2025, 235 Điều thật) đã đủ để xây dựng
-retrieval + compliance checker cho phần lõi (Chương III năng lực-kinh nghiệm, Điều 44 nội
-dung HSMT) đúng target Mức 1-2 của đề cương. Việc bổ sung 2 Thông tư sẽ được đánh giá lại sau
-khi có Ngày 5 (chunker + index) chạy thử — nếu retrieval cho câu hỏi về thủ tục nộp thầu qua
-mạng thiếu căn cứ rõ ràng, sẽ quay lại xử lý.
+**Kết luận:** corpus hiện tại gồm cả 4 văn bản (Luật + Nghị định 214/2025 + 2 Thông tư,
+283 Điều thật, 587 chunk sau khi chia theo Khoản — xem `scripts/build_legal_index.py`) đủ
+để xây dựng retrieval + compliance checker cho cả phần lõi (Chương III năng lực-kinh
+nghiệm, nội dung HSMT) lẫn thủ tục đăng tải/nộp thầu qua mạng (đề cương Mức 1-2).
 
 ---
 
@@ -308,22 +319,24 @@ gian HSMT, phương pháp đánh giá, hợp đồng, ưu đãi, xử lý vi ph�
 tính trên "Điều đúng có nằm trong top-k hay không" (một Điều có thể bị chunk thành nhiều
 mảnh theo Khoản — tính đúng nếu BẤT KỲ mảnh nào thuộc đúng Điều xuất hiện trong top-k).
 
-**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, xem
-`reports/retrieval_metrics.json`):
+**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, sau khi bổ sung 2
+Thông tư — corpus 283 Điều/587 chunk, xem `reports/retrieval_metrics.json`):
 
 | Chế độ | Recall@5 | MRR | nDCG@5 | Thời gian (38 câu) |
 |---|---|---|---|---|
-| BM25 (sparse) | 0.500 | 0.366 | 0.392 | 0.5s |
-| Dense (bi-encoder) | 0.658 | 0.518 | 0.547 | 12.8s |
-| Hybrid RRF (dense+sparse) | 0.684 | 0.479 | 0.528 | 2.1s |
-| Hybrid RRF + rerank (cross-encoder) | **0.789** | **0.591** | **0.638** | 666.2s |
+| BM25 (sparse) | 0.500 | 0.343 | 0.379 | 1.0s |
+| Dense (bi-encoder) | 0.658 | 0.518 | 0.547 | 15.1s |
+| Hybrid RRF (dense+sparse) | 0.658 | 0.481 | 0.519 | 4.0s |
+| Hybrid RRF + rerank (cross-encoder) | **0.789** | **0.584** | **0.633** | 791.5s |
 
 **Nhận xét:** BM25 đơn lẻ yếu nhất (đúng như kỳ vọng — không hiểu ngữ nghĩa, chỉ khớp từ);
-dense cải thiện rõ; hybrid RRF cải thiện thêm Recall@5 nhưng MRR/nDCG@5 giảm nhẹ so với
-dense-only (dấu hiệu BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn giữ nó trong top-5);
-rerank cross-encoder cải thiện mạnh nhất trên mọi chỉ số — đúng với quan sát định tính ở
-`scripts/smoke_test_retrieval.py` — nhưng **chi phí thời gian rất cao** (666s cho 38 câu ×
-50 ứng viên = 1.900 lượt suy luận cross-encoder trên CPU, ~17,5s/câu) — cần cân nhắc giữa
+dense cải thiện rõ; hybrid RRF không đổi Recall@5 so với dense-only ở đây (thêm 76 chunk
+từ 2 Thông tư mới không cạnh tranh với các Điều Luật/Nghị định đã đúng target của 38 câu
+gán tay — dự kiến, vì bộ câu hỏi này không nhắm riêng vào nội dung 2 Thông tư) nhưng
+MRR/nDCG@5 giảm nhẹ so với dense-only (BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn
+giữ nó trong top-5); rerank cross-encoder cải thiện mạnh nhất trên mọi chỉ số — đúng với
+quan sát định tính ở `scripts/smoke_test_retrieval.py` — nhưng **chi phí thời gian rất
+cao** (~792s cho 38 câu × 50 ứng viên trên corpus lớn hơn, ~20,8s/câu) — cần cân nhắc giữa
 chất lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn
 mục HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
 
