@@ -145,3 +145,50 @@ thống đã hoạt động end-to-end với kiến trúc sẵn sàng nâng cấ
 chạy offline, chi phí ~0, giải thích được qua attention/rule trace) mà không cần đổi
 kiến trúc phần mềm. Đây là luận điểm chính khi bảo vệ: giá trị đóng góp nằm ở **kiến trúc
 hệ thống và cơ chế fallback/HITL/compliance**, không phải ở việc gọi một API LLM có sẵn.
+
+**Lưu ý (bản redesign RAG+LLM, xem Mục dưới):** phần này viết cho bản đồ án solo 7 ngày
+gốc (đối tượng: tự train Tier 1). Đề cương mới (nhóm 4 người, 15 ngày) đổi hướng — dùng
+thẳng LLM có sẵn (Claude API) làm đường sinh CHÍNH, không bắt buộc tự train — nên luận điểm
+"giá trị nằm ở kiến trúc fallback, không phải gọi LLM" không còn là câu trả lời chính cho
+bản mới. Câu trả lời tương ứng cho bản mới: giá trị nằm ở **kho tri thức pháp luật thật +
+kiến trúc RAG (retrieval có kiểm chứng, trích dẫn bắt buộc, compliance guard R1-R5)** — khác
+với việc hỏi thẳng ChatGPT/Claude không có RAG, vốn không có cơ chế nào đảm bảo câu trả lời
+dựa trên đúng văn bản pháp luật hiện hành (rủi ro "bịa" điều khoản hoặc dùng luật đã hết hiệu
+lực — xem đúng lỗi này tôi tự phát hiện ở Mục 10 DATA_CARD.md khi ban đầu định dùng nhầm
+Nghị định 24/2024 đã hết hiệu lực). Bảng ablation LLM-only vs RAG (`docs/DATA_CARD.md` Mục
+13) đo trực tiếp sự khác biệt này khi có `ANTHROPIC_API_KEY`.
+
+---
+
+## Phân tích Deep Learning — so sánh không gian embedding (Giai đoạn 3, đề cương RAG+LLM)
+
+Theo đúng hướng đề cương mới: "Deep Learning" ở đây thể hiện qua **phân tích/đánh giá** các
+mạng nơ-ron pretrained (embedding, cross-encoder), KHÔNG qua việc tự huấn luyện. Chạy
+`scripts/analyze_embeddings.py` trên 511 chunk của kho tri thức thật (`data/samples/legal_corpus/`),
+so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`):
+
+| Model | Kiến trúc/dữ liệu train | Chiều | intra-Điều (TB) | inter-Điều (TB) | Độ tách biệt |
+|---|---|---|---|---|---|
+| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4784 | 0.3391 | **0.1393** |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6625 | 0.5391 | 0.1233 |
+
+**"Độ tách biệt"** = cosine similarity trung bình giữa các chunk CÙNG một Điều (intra) trừ
+đi similarity trung bình giữa các chunk KHÁC Điều (inter) — không gian biểu diễn "tốt cho
+retrieval" phải có độ tách biệt cao (các đoạn cùng chủ đề pháp lý gần nhau hơn hẳn các đoạn
+khác chủ đề). **Kết quả:** dù model đa ngôn ngữ có similarity tuyệt đối cao hơn hẳn ở cả 2
+nhóm (0.66/0.54 so với 0.48/0.34 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
+nghĩa tuyệt đối), model tiếng Việt chuyên biệt lại có **độ tách biệt tương đối cao hơn**
+(0.1393 > 0.1233) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
+similarity tuyệt đối thấp hơn. Kết quả này **khớp** với bảng Recall@k/MRR/nDCG đo trực tiếp
+qua truy vấn thật (`docs/DATA_CARD.md` Mục 12, chạy trên `vi_bi_encoder`: Recall@5=0.658
+dense-only) — cả 2 phép đo (độc lập, một dựa trên cấu trúc không gian embedding, một dựa
+trên truy vấn thật) đều ủng hộ model tiếng Việt chuyên biệt phù hợp hơn cho corpus pháp
+luật tiếng Việt so với model đa ngôn ngữ tổng quát.
+
+**Trực quan hoá t-SNE/UMAP** (`reports/figures/embedding_{model}_{tsne,umap}.png`, tô màu
+theo văn bản nguồn — Luật vs Nghị định): cả 2 phép chiếu đều cho thấy một khối trung tâm lớn
+trộn lẫn giữa 2 màu (hợp lý — Nghị định là văn bản CHI TIẾT HOÁ của Luật, dùng chung nhiều
+thuật ngữ/chủ đề) cùng một số cụm nhỏ tách biệt ở rìa — khớp với quan sát thủ công ở Mục 11
+DATA_CARD.md rằng nhiều Điều của Nghị định dùng lại gần như nguyên văn cấu trúc/tiêu đề cho
+các loại gói thầu khác nhau (hàng hóa/xây lắp/dịch vụ), tạo thành các nhóm văn bản gần giống
+hệt nhau về mặt ngữ nghĩa.
