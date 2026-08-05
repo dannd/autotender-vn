@@ -10,7 +10,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge  # noqa: E402
+from common import get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge_claude  # noqa: E402
 
 init_page("3 — Soạn thảo HSMT (Mức 2)")
 
@@ -88,7 +88,7 @@ section = store.get_section(selected_doc_id, selected_section_id)
 
 with mid:
     st.subheader(f"✍️ {section.title}")
-    st.caption(f"{status_icon(section.status)} Trạng thái: {section.status} · {tier_badge(section.model_tier)}")
+    st.caption(f"{status_icon(section.status)} Trạng thái: {section.status} · {tier_badge_claude(section.model_tier)}")
 
     edited = st.text_area(
         "Nội dung (có thể sửa trực tiếp)", value=section.current_text, height=350,

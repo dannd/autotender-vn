@@ -64,13 +64,16 @@ rule_filter = st.multiselect("Mã quy tắc", options=sorted(df["rule_code"].uni
 filtered = df[df["rule_code"].isin(rule_filter)]
 
 st.subheader(f"Bảng tổng hợp cờ ({len(filtered)})")
-for _, row in filtered.iterrows():
+for i, row in filtered.reset_index(drop=True).iterrows():
     with st.expander(f"{severity_icon(row['severity'])} [{row['rule_code']}] {row['title']} — \"{row['sentence'][:60]}...\""):
         st.write(f"**Câu vi phạm:** {row['sentence']}")
         st.write(f"**Giải thích:** {row['explanation']}")
         st.caption(f"Độ tin cậy: {row['confidence']:.2f}")
         b1, b2 = st.columns(2)
-        key_base = f"{row['section_id']}_{row['rule_code']}"
+        # `i` (vị trí sau khi lọc/sort) đảm bảo key duy nhất — 1 section có thể có
+        # nhiều cờ CÙNG rule_code (vd 2 số liệu sai lệch R4 khác nhau trong 1 mục),
+        # chỉ dùng section_id+rule_code từng gây StreamlitDuplicateElementKey thật.
+        key_base = f"{row['section_id']}_{row['rule_code']}_{i}"
         if b1.button("✅ Chấp nhận cờ", key=f"accept_{key_base}"):
             store.record_flag_feedback(selected_doc_id, row["section_id"], row["rule_code"], "accepted")
             st.success("Đã ghi nhận.")

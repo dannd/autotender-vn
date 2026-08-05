@@ -26,6 +26,14 @@ TIER_BADGE = {
     2: "🟡 Tier 2 — pretrained",
     3: "🔵 Tier 3 — rule-based",
 }
+# M5 Generator và Mức 1 Hỏi-đáp (LegalQAModule) dùng cùng khung BaseModule 3-tier
+# nhưng Tier 1 của 2 module này là gọi Claude API (đề cương RAG+LLM), KHÔNG phải
+# checkpoint tự fine-tune như M2 NER/M6 Compliance — nhãn riêng để không gây hiểu nhầm.
+TIER_BADGE_CLAUDE = {
+    1: "🟢 Tier 1 — Claude API",
+    2: "🟡 Tier 2 — dự phòng (chưa dùng)",
+    3: "🔵 Tier 3 — template/trích dẫn không qua LLM",
+}
 STATUS_ICON = {"draft": "⏳", "edited": "✏️", "approved": "✅", "rejected": "❌"}
 SEVERITY_COLOR = {"cao": "🔴", "trung_binh": "🟠", "thap": "🟡"}
 
@@ -53,6 +61,12 @@ def get_store() -> HitlStore:
 
 def tier_badge(tier: int | None) -> str:
     return TIER_BADGE.get(tier, "⚪ Không xác định")
+
+
+def tier_badge_claude(tier: int | None) -> str:
+    """Badge cho module có Tier 1 = Claude API (M5 Generator, Mức 1 Hỏi-đáp) — xem
+    `TIER_BADGE_CLAUDE`."""
+    return TIER_BADGE_CLAUDE.get(tier, "⚪ Không xác định")
 
 
 def status_icon(status: str) -> str:

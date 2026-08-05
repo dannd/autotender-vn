@@ -8,7 +8,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import get_store, init_page, tier_badge  # noqa: E402
+from common import get_store, init_page  # noqa: E402
 
 init_page("AutoTender-VN")
 

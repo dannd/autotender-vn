@@ -8,7 +8,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import get_qa_module, init_page, tier_badge  # noqa: E402
+from common import get_qa_module, init_page, tier_badge_claude  # noqa: E402
 
 init_page("7 — Hỏi-đáp (Mức 1)")
 
@@ -44,7 +44,7 @@ if st.button("🔍 Hỏi", type="primary", disabled=not question):
     with st.spinner("Đang truy xuất và tổng hợp câu trả lời..."):
         answer = module.ask(question)
 
-    st.markdown(f"**{tier_badge(module.active_tier)}** · model: `{answer.model_used}`")
+    st.markdown(f"**{tier_badge_claude(module.active_tier)}** · model: `{answer.model_used}`")
     st.markdown("### Trả lời")
     st.write(answer.answer)
 
