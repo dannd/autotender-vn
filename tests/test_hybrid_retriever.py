@@ -110,9 +110,15 @@ def test_missing_faiss_index_falls_back_to_bm25_only_without_error(tmp_path):
 
     assert retriever.num_chunks > 0  # tự chunk từ corpus luật thật đã commit
     assert retriever._faiss_index is None
+    assert retriever.has_dense_index is False
 
     results = retriever.retrieve("hồ sơ mời thầu gồm những nội dung gì", top_k=3)
     assert len(results) > 0
+
+
+def test_has_dense_index_true_when_faiss_built(index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=index_dir)
+    assert retriever.has_dense_index is True
 
 
 def test_retrieve_dense_raises_clear_error_when_faiss_missing(tmp_path):

@@ -82,6 +82,12 @@ class HybridLegalRetriever:
     def num_chunks(self) -> int:
         return len(self._chunks)
 
+    @property
+    def has_dense_index(self) -> bool:
+        """True nếu đã build FAISS (`scripts/build_legal_index.py`) cho `model_key` này —
+        dùng để hiển thị trạng thái trên GUI (Trang 6) mà không cần đọc thuộc tính private."""
+        return self._faiss_index is not None
+
     def _get_encoder(self):
         if self._encoder is None:
             from sentence_transformers import SentenceTransformer
