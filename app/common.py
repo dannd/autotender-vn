@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from autotender.config import get_app_settings, resolve_path  # noqa: E402
 from autotender.hitl.store import HitlStore  # noqa: E402
+from autotender.models.legal_qa import LegalQAModule  # noqa: E402
 from autotender.pipeline.orchestrator import Orchestrator  # noqa: E402
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 
@@ -32,6 +33,11 @@ SEVERITY_COLOR = {"cao": "🔴", "trung_binh": "🟠", "thap": "🟡"}
 @st.cache_resource(show_spinner="Đang khởi tạo pipeline (NER, RAG, Generator, Compliance)...")
 def get_orchestrator() -> Orchestrator:
     return Orchestrator()
+
+
+@st.cache_resource(show_spinner="Đang khởi tạo module Hỏi-đáp (Mức 1)...")
+def get_qa_module() -> LegalQAModule:
+    return LegalQAModule()
 
 
 @st.cache_resource

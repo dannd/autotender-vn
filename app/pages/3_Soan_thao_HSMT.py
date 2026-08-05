@@ -1,4 +1,5 @@
-"""Trang 3 — Soạn thảo HSMT, màn hình chính (Mục 7)."""
+"""Trang 3 — Soạn thảo HSMT (Mức 2, đề cương RAG+LLM: soạn từng mục Chương III/V bằng
+Claude API + RAG, có trích dẫn + cờ tuân thủ)."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge  # noqa: E402
 
-init_page("3 — Soạn thảo HSMT")
+init_page("3 — Soạn thảo HSMT (Mức 2)")
 
 orch = get_orchestrator()
 store = get_store()
@@ -66,6 +67,14 @@ with left:
             if st.button(label, key=f"nav_{selected_doc_id}_{s.section_id}", use_container_width=True):
                 selected_section_id = s.section_id
     st.session_state["selected_section_id"] = selected_section_id
+
+    with st.expander("🚩 Kiểm tra đủ thành phần (R5)"):
+        r5_flags = orch.check_completeness(doc.sections)
+        if not r5_flags:
+            st.success("Đủ thành phần bắt buộc (Chương III + Chương V) theo Điều 26 Khoản 2 NĐ 214/2025/NĐ-CP.")
+        else:
+            for f in r5_flags:
+                st.markdown(f"{severity_icon(f.severity)} {f.explanation}")
 
     if st.button("🪄 Sinh lại toàn bộ", use_container_width=True):
         from autotender.models.generator import SECTION_DEFINITIONS
