@@ -326,3 +326,35 @@ rerank cross-encoder cải thiện mạnh nhất trên mọi chỉ số — đú
 50 ứng viên = 1.900 lượt suy luận cross-encoder trên CPU, ~17,5s/câu) — cần cân nhắc giữa
 chất lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn
 mục HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
+
+---
+
+## 13. Faithfulness (LLM-as-judge) + bảng ablation LLM-only vs RAG
+
+`src/autotender/eval/faithfulness_eval.py` chấm 2 chiều — **faithfulness** (mọi khẳng định
+trong văn bản sinh ra có được trích đoạn căn cứ hỗ trợ không) và **completeness** (có tận
+dụng đầy đủ thông tin sẵn có trong trích đoạn không) — bằng cách gọi Claude API làm giám
+khảo, chấm theo rubric cố định, trả JSON có cấu trúc (điểm số + danh sách khẳng định không
+có căn cứ + giải thích).
+
+**Giới hạn phương pháp luận cần nêu rõ (đúng như đề cương Mục 7 gợi ý xác nhận lại với
+giảng viên):** giám khảo và mô hình sinh CÙNG là Claude — có thể có thiên lệch tự ưu ái nhẹ
+(self-preference bias), hiện tượng đã ghi nhận trong literature LLM-as-judge. Không có ngân
+sách dùng judge khác họ (GPT-4, Gemini...) trong phạm vi 15 ngày.
+
+`scripts/run_ablation_table.py` gộp 2 phần:
+- **Phần A (Retrieval)** — đọc lại `reports/retrieval_metrics.json` (Mục 12): dense vs BM25
+  vs hybrid vs hybrid+rerank.
+- **Phần B (Generation — LLM-only vs RAG)** — với mỗi câu hỏi trong tập eval (Mục 12), gọi
+  Claude 2 lần: KHÔNG kèm trích dẫn (LLM-only, chỉ dựa kiến thức đã huấn luyện sẵn) và CÓ
+  kèm trích dẫn thật (RAG); cả 2 câu trả lời đều được chấm bằng CÙNG trích dẫn thật làm căn
+  cứ đối chiếu — đo được LLM-only "đoán đúng nhờ kiến thức nền" hay "bịa" nhiều đến đâu so
+  với khi có RAG.
+
+**Trạng thái tại thời điểm biên soạn báo cáo:** môi trường phát triển phiên làm việc này
+KHÔNG có `ANTHROPIC_API_KEY` (chưa cấu hình billing) — chạy `scripts/run_ablation_table.py`
+cho kết quả Phần A đầy đủ (số liệu thật, xem Mục 12) và Phần B **`"status": "N/A"`** kèm
+thông báo rõ ràng thay vì giả lập điểm số. Code đã sẵn sàng chạy đầy đủ Phần B ngay khi nhóm
+cấu hình API key thật — chỉ cần `python scripts/run_ablation_table.py --n-questions 10`
+(giảm `--n-questions` để kiểm soát chi phí API, mỗi câu tốn 4 lượt gọi Claude: sinh no-RAG +
+sinh RAG + chấm no-RAG + chấm RAG).
