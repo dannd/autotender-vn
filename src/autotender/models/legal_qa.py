@@ -49,11 +49,11 @@ class LegalQAModule(BaseModule[QAAnswer]):
         return self.run(question)
 
     def _retrieve_citations(self, question: str) -> list[RetrievedChunk]:
-        return self._retriever.retrieve(
-            question,
-            top_k=self._cfg.get("top_k_citations", 5),
-            candidate_k=self._cfg.get("candidate_k", 50),
-        )
+        top_k = self._cfg.get("top_k_citations", 5)
+        candidate_k = self._cfg.get("candidate_k", 50)
+        if self._cfg.get("use_rerank", True):
+            return self._retriever.retrieve_reranked(question, top_k=top_k, candidate_k=candidate_k)
+        return self._retriever.retrieve(question, top_k=top_k, candidate_k=candidate_k)
 
     # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, question: str) -> QAAnswer:

@@ -43,6 +43,7 @@ def retriever(tmp_path):
 
 def test_ask_uses_claude_when_available(monkeypatch, retriever):
     module = LegalQAModule(retriever=retriever)
+    module._cfg = dict(module._cfg, use_rerank=False)  # tránh gọi cross-encoder thật (cần mạng) trong unit test
     monkeypatch.setattr(
         legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude (Điều 44)."
     )
@@ -58,6 +59,7 @@ def test_ask_uses_claude_when_available(monkeypatch, retriever):
 
 def test_ask_falls_back_to_template_when_claude_unavailable(monkeypatch, retriever):
     module = LegalQAModule(retriever=retriever)
+    module._cfg = dict(module._cfg, use_rerank=False)  # tránh gọi cross-encoder thật (cần mạng) trong unit test
 
     def _raise(**kwargs):
         raise ClaudeUnavailableError("no api key")
