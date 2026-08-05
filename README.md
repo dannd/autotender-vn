@@ -7,11 +7,13 @@ Thạc sĩ, nhóm 4 người, thực hiện trong 15 ngày.
 > **Lịch sử dự án:** bản đầu là đồ án solo 7 ngày với kiến trúc đa module tự train
 > (NER/Classifier/Generator fine-tune). Đề cương môn học sau đó đổi hướng sang phạm vi
 > hẹp hơn (chỉ gói phần mềm/CNTT) và cách tiếp cận RAG+LLM (dùng LLM có sẵn, không bắt
-> buộc tự train) — README này mô tả **trạng thái hiện tại** theo hướng mới. Nội dung
-> Phase 1 cũ (kiến trúc 3-tier tự train, dữ liệu TBMT tổng hợp/thật) vẫn còn trong code
-> (`models/ner.py`, `models/classifier.py`, `crawler/`) với vai trò giảm — trích trường
-> từ KHLCNT upload — xem `docs/DATA_CARD.md` và `docs/MODEL_CARD.md` để phân biệt rõ nội
-> dung nào thuộc bản cũ (đánh dấu rõ trong từng mục) và nội dung nào thuộc bản redesign.
+> buộc tự train) — README này mô tả **trạng thái hiện tại** theo hướng mới. Một phần code
+> Phase 1 cũ (kiến trúc 3-tier tự train, dữ liệu TBMT tổng hợp/thật) vẫn còn trong repo
+> (`models/ner.py`, `crawler/`) với vai trò giảm — trích trường từ KHLCNT upload; phần đã
+> bị thay thế hoàn toàn (M3 Classifier, M4 BM25-only retriever cũ) đã được gỡ khỏi code khi
+> dọn dẹp, chỉ còn số liệu lịch sử trong `docs/MODEL_CARD.md` — xem `docs/DATA_CARD.md` và
+> `docs/MODEL_CARD.md` để phân biệt rõ nội dung nào thuộc bản cũ và nội dung nào thuộc bản
+> redesign.
 
 Xem đặc tả gốc tại [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — đề cương redesign nằm
 ngoài repo (`de-cuong-hsmt-rag-cntt-phan-mem.pdf`, cung cấp bởi giảng viên).

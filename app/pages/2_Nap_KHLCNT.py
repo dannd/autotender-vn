@@ -43,14 +43,13 @@ raw_text = st.session_state.get("khlcnt_raw_text")
 if raw_text:
     fields = orch.extract_fields(raw_text)
     st.session_state["khlcnt_fields"] = fields
-    classification = orch.classify_package(raw_text)
 
     st.divider()
     left, right = st.columns([3, 2])
 
     with left:
         st.subheader("Văn bản gốc")
-        st.caption(f"Model tier NER: {tier_badge(orch.ner.active_tier)} · Phân loại: **{classification.label_display}** ({tier_badge(orch.classifier.active_tier)}, conf={classification.confidence:.2f})")
+        st.caption(f"Model tier NER: {tier_badge(orch.ner.active_tier)}")
 
         highlighted = raw_text
         for f in sorted(fields, key=lambda x: -(x.char_start or 0)):

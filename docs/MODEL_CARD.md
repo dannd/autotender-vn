@@ -7,8 +7,12 @@ không cho phép chạy `notebooks/01-05` để tạo checkpoint Tier 1 thật t
 Đây là hạn chế đã được lường trước và xử lý đúng theo Degraded Mode — phần mềm vẫn chạy
 được và demo được đầy đủ luồng end-to-end.
 
-Số liệu dưới đây trích từ lần chạy `scripts/evaluate.py` gần nhất — xem `reports/metrics.json`
-để có số mới nhất và `docs/DATA_CARD.md` mục 5-6 để hiểu giới hạn của cách đánh giá.
+Số liệu dưới đây là **ảnh chụp cố định** từ lần chạy cuối của `scripts/evaluate.py` — script
+này (cùng `models/classifier.py`, `models/retriever.py`, `scripts/build_index.py` và 2
+notebook train tương ứng) đã bị gỡ khỏi repo khi dọn dẹp code sau khi chuyển sang bản
+redesign RAG+LLM (M3 Classifier và M4 BM25-proxy bên dưới không còn được dùng/tái tạo được
+— xem Mục "M3-M4 (lịch sử" bên dưới và `docs/DATA_CARD.md` mục 5-6 để hiểu giới hạn của
+cách đánh giá gốc).
 
 ---
 
@@ -38,43 +42,24 @@ làm test set độc lập.
 
 ---
 
-## M3 — Phân loại gói thầu (`models/classifier.py`)
+## M3-M4 (lịch sử) — Phân loại gói thầu & Retrieval BM25-only của bản đồ án solo gốc
 
-| Tier | Kiến trúc | Trạng thái |
-|---|---|---|
-| 1 | PhoBERT + classification head | Chưa có checkpoint |
-| 2 | XLM-R zero-shot classification | Chưa cài `transformers` |
-| 3 | Keyword matching | **Đang chạy** |
+Bản đồ án solo 7 ngày gốc có 2 module đã bị **thay thế hoàn toàn** khi chuyển sang bản
+redesign RAG+LLM (nhóm 4 người, 15 ngày) — code, test, config và notebook train tương ứng
+đã được gỡ khỏi repo (`models/classifier.py`, `models/retriever.py`, `scripts/evaluate.py`,
+`scripts/build_index.py`, `notebooks/02_train_classifier.ipynb`,
+`notebooks/03_train_retriever.ipynb`). Giữ lại tóm tắt số liệu lịch sử để tham chiếu:
 
-**Metric (521 bản ghi, 501 bản ghi THẬT — nhãn `package_type` lấy trực tiếp từ trường
-"Lĩnh vực MSC" trên trang chi tiết dauthau.asia, không phải suy đoán):**
-- Tier 3 (keyword): macro-F1 = 0.500
-- Baseline TF-IDF + LogisticRegression (3 seed): macro-F1 = 0.554 ± 0.008
-
-**Nhận xét quan trọng:** đây là điểm dữ liệu đảo chiều đáng chú ý — với 20 mẫu, Tier 3 vượt
-baseline (0.610 vs 0.394); với 232 mẫu, khoảng cách thu hẹp; với 521 mẫu (phân bố thật: xây
-lắp 186, hàng hóa 184, phi tư vấn 74, tư vấn 26, hỗn hợp 19), **baseline thống kê đã vượt
-Tier 3 rule-based** (0.554 vs 0.500). Đây đúng như dự đoán lý thuyết: rule-based không cải
-thiện khi có thêm dữ liệu (quy tắc cố định), còn phương pháp thống kê/học máy thì có — minh
-chứng cụ thể, đo được, cho lý do cần nâng cấp lên Tier 1 (fine-tune) khi đã đủ dữ liệu, đúng
-tinh thần thiết kế Degraded Mode (Tier 3 là sàn an toàn tạm thời, không phải đích đến).
-
----
-
-## M4 — Retrieval / RAG (`models/retriever.py`, `rag/`)
-
-| Tier | Kiến trúc | Trạng thái |
-|---|---|---|
-| 1 | Bi-encoder fine-tuned + FAISS + cross-encoder rerank | Chưa có checkpoint |
-| 2 | `bkai-foundation-models/vietnamese-bi-encoder` zero-shot + FAISS | Chưa cài `sentence-transformers`/`faiss-cpu` |
-| 3 | BM25 thuần Python (`rag/bm25.py`) | **Đang chạy** |
-
-**Metric:** BM25 proxy Recall@5 = 1.0/8 truy vấn mẫu (xem giới hạn phương pháp proxy ở
-DATA_CARD.md mục 5). Baseline chính thức theo Mục 10 SPEC (Recall@5/MRR@10/nDCG@10 so
-BM25 vs bi-encoder fine-tuned) cần chạy `notebooks/03_train_retriever.ipynb` trên Colab.
-
-**Corpus:** 13 chunk từ 3 file mẫu minh hoạ (`data/samples/corpus/`) — xem DATA_CARD.md
-mục 4 về giới hạn dữ liệu tổng hợp.
+- **M3 — Phân loại gói thầu:** Tier 3 (keyword) macro-F1 = 0.500 trên 521 bản ghi (501
+  thật); baseline TF-IDF+LogisticRegression = 0.554 ± 0.008 — phát hiện đáng chú ý: baseline
+  thống kê vượt rule-based khi đủ dữ liệu (với 20 mẫu ban đầu, Tier 3 vẫn vượt baseline).
+  Module này bị loại khỏi pipeline mới vì phạm vi hệ thống đã khoá cứng "phần mềm/CNTT"
+  (đề cương mới), phân loại loại gói thầu không còn ảnh hưởng đến luồng sinh HSMT.
+- **M4 — Retrieval (BM25-only):** BM25 proxy Recall@5 = 1.0/8 truy vấn mẫu trên corpus minh
+  hoạ 13 chunk (`data/samples/corpus/`, xem DATA_CARD.md mục 5 về giới hạn phương pháp
+  proxy). Thay thế bởi `rag/hybrid_retriever.py` (dense+BM25 hybrid, corpus luật thật 283
+  Điều/587 chunk) — xem `docs/DATA_CARD.md` mục 12 cho số liệu Recall@k/MRR/nDCG@k thật
+  trên tập 38 câu hỏi gán tay.
 
 ---
 
@@ -135,6 +120,10 @@ cân bằng nặng giữa lớp OK và các lớp vi phạm.
 | (b) Bỏ hard negative (huấn luyện bi-encoder) | N/A — cần Colab, chưa thực hiện |
 | (c) Bỏ M6 | Cờ phát hiện: 6 → 0 |
 | (d) PhoBERT vs XLM-R | N/A — cần Colab, chưa thực hiện |
+
+Bảng trên là ablation của bản đồ án solo 7 ngày gốc (Tier 3 rule-based). Bảng ablation
+LLM-only vs RAG **thật** (đo trực tiếp bằng Claude API, faithfulness/completeness) của bản
+redesign RAG+LLM nằm ở `docs/DATA_CARD.md` mục 13.
 
 ---
 

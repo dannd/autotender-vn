@@ -6,21 +6,6 @@ ner:
   tier2_model: "xlm-roberta-base"
   labels: ["PACKAGE_NAME", "VALUE", "FUNDING", "METHOD", "CONTRACT_TYPE", "DURATION", "INVESTOR", "LOCATION"]
 
-classifier:
-  tier1_checkpoint: "models/classifier_phobert"
-  tier2_model: "xlm-roberta-base"
-  labels: ["hang_hoa", "xay_lap", "tu_van", "phi_tu_van", "hon_hop"]
-
-retriever:
-  tier1_checkpoint: "models/retriever_bi_encoder"
-  bi_encoder_base: "bkai-foundation-models/vietnamese-bi-encoder"
-  cross_encoder_base: "xlm-roberta-base"
-  index_path: "data/processed/faiss.index"
-  chunk_max_tokens: 512
-  chunk_overlap_tokens: 64
-  top_k_retrieve: 50
-  top_k_rerank: 5
-
 generator:
   claude_model: "claude-sonnet-5"
   # Phát hiện thực tế khi chạy live: 1536 không đủ cho mục dài (bảng điểm kỹ thuật,

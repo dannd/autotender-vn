@@ -19,13 +19,14 @@ này với `data/samples/tender_notices.jsonl` được thay bằng dữ liệu 
 
 ## 1. Mở notebook trên Colab
 
-Có 4 notebook, độc lập với nhau (mỗi cái chạy trên 1 runtime riêng của Colab):
+Có 2 notebook (mỗi cái chạy trên 1 runtime riêng của Colab). **M3 — Classifier và M4 —
+Retriever cũ đã bị loại khỏi pipeline** (thay bằng khoá cứng phạm vi "phần mềm/CNTT" và
+`rag/hybrid_retriever.py` — xem `docs/MODEL_CARD.md`), nên 2 notebook train tương ứng
+(`02_train_classifier.ipynb`, `03_train_retriever.ipynb`) cũng đã bị gỡ khỏi repo:
 
 | Notebook | Module | Thời gian ước tính (T4) |
 |---|---|---|
 | `notebooks/01_train_ner.ipynb` | M2 — NER | ~5-10 phút |
-| `notebooks/02_train_classifier.ipynb` | M3 — Classifier | ~5-10 phút |
-| `notebooks/03_train_retriever.ipynb` | M4 — Retriever | ~5-10 phút |
 | `notebooks/04_train_generator.ipynb` | M5 — Generator | ~10-15 phút |
 
 Cách mở nhanh nhất — dán URL sau vào trình duyệt (thay `01_train_ner` bằng tên notebook
@@ -48,8 +49,8 @@ Trong Colab: **Runtime → Change runtime type → Hardware accelerator → T4 G
 Mỗi notebook đã tự chứa đủ các bước:
 1. `!pip install ...` — cài thư viện cần thiết.
 2. `!git clone https://github.com/dannd/autotender-vn.git` — tải code + dataset mẫu.
-3. (Chỉ 01, 02) `!python scripts/build_dataset.py` — sinh lại dataset NER/classifier.
-4. Load dữ liệu, tokenize, huấn luyện, đánh giá (F1/macro-F1/ROUGE-L tuỳ notebook).
+3. (Chỉ 01) `!python scripts/build_dataset.py` — sinh lại dataset NER.
+4. Load dữ liệu, tokenize, huấn luyện, đánh giá (F1/ROUGE-L tuỳ notebook).
 5. Lưu checkpoint vào `/content/models/<tên_module>/`.
 6. **Cell cuối cùng: nén thành `.zip` và tự động tải về máy** (dùng
    `google.colab.files.download`, không cần mount Google Drive).
@@ -60,8 +61,6 @@ Sau khi tải file `.zip` về máy (ví dụ `ner_phobert.zip`), giải nén đ
 
 ```
 autotender-vn/models/ner_phobert/
-autotender-vn/models/classifier_phobert/
-autotender-vn/models/retriever_bi_encoder/
 autotender-vn/models/generator_vit5/
 ```
 
@@ -73,7 +72,6 @@ autotender-vn/models/generator_vit5/
 cd autotender-vn
 pytest -q                      # vẫn phải pass (Tier 3 vẫn là fallback)
 streamlit run app/main.py      # vào Trang 6 — badge tier phải chuyển 🟢 Tier 1
-python scripts/evaluate.py     # ghi lại reports/metrics.json với số liệu Tier 1 thật
 ```
 
 Trang 6 (Bảng điều khiển Model) sẽ hiển thị checkpoint đã tồn tại (✅) và tier đang chạy
@@ -83,7 +81,6 @@ chuyển từ 🔵 Tier 3 sang 🟢 Tier 1 sau khi module đó được gọi í
 
 - Notebook 01 có sẵn mục "Ablation: PhoBERT vs XLM-R" ở cuối — đổi `MODEL_NAME` thành
   `'xlm-roberta-base'` và chạy lại các cell huấn luyện để so sánh.
-- Notebook 03 có sẵn phần so sánh BM25 baseline vs bi-encoder fine-tuned (Recall@5, MRR@10).
 
 ## Lưu ý bảo mật
 

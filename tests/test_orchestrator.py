@@ -19,9 +19,6 @@ def test_orchestrator_full_flow_from_text_to_generated_sections(monkeypatch):
     fields = orch.extract_fields(text)
     assert any(f.name == "VALUE" for f in fields)
 
-    classification = orch.classify_package(text)
-    assert classification.label in {"hang_hoa", "xay_lap", "tu_van", "phi_tu_van", "hon_hop"}
-
     package = TenderNotice(
         tbmt_id="IB1", package_name="Mua sắm máy chủ", investor="Sở TTTT", source_url="https://x"
     )

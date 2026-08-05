@@ -1,8 +1,12 @@
-"""Orchestrator — ghép M1 (ingest) -> M2 (NER) -> M3 (classify) -> M4 (RAG) -> M5 (generate)
--> M6 (compliance) thành một luồng xử lý dùng chung cho GUI (Mục 4, Mục 7).
+"""Orchestrator — ghép M1 (ingest) -> M2 (NER) -> M4 (RAG) -> M5 (generate) -> M6
+(compliance) thành một luồng xử lý dùng chung cho GUI (Mục 4, Mục 7).
 
 Mỗi bước dùng đúng module 3-tier tương ứng — orchestrator không tự quyết định tier,
 chỉ đọc `active_tier` sau khi module chạy xong để hiển thị badge trên UI.
+
+Không còn bước phân loại loại gói thầu (M3 cũ) — phạm vi hệ thống đã khoá cứng "phần
+mềm/CNTT" theo đề cương RAG+LLM, phân loại tự động không còn ảnh hưởng đến luồng sinh
+HSMT (`models/classifier.py` cũ vẫn còn trong lịch sử git nếu cần tham khảo lại).
 """
 
 from __future__ import annotations
@@ -13,7 +17,6 @@ from pathlib import Path
 from autotender.ingest.docx_reader import extract_docx_text
 from autotender.ingest.ocr import ocr_image_bytes
 from autotender.ingest.pdf_reader import extract_pdf_text
-from autotender.models.classifier import ClassificationResult, ClassifierModule
 from autotender.models.compliance import ComplianceModule, check_document_completeness
 from autotender.models.generator import SECTION_DEFINITIONS, GeneratorModule
 from autotender.models.ner import NERModule
@@ -25,7 +28,6 @@ from autotender.utils.vn_text import normalize_document_text
 class Orchestrator:
     def __init__(self, retriever: HybridLegalRetriever | None = None):
         self.ner = NERModule()
-        self.classifier = ClassifierModule()
         self.retriever = retriever or HybridLegalRetriever()
         self.generator = GeneratorModule(self.retriever)
         self.compliance = ComplianceModule()
@@ -49,10 +51,6 @@ class Orchestrator:
     # -- M2 NER -----------------------------------------------------------------
     def extract_fields(self, text: str) -> list[ExtractedField]:
         return self.ner.extract(text)
-
-    # -- M3 Classifier ------------------------------------------------------------
-    def classify_package(self, text: str) -> ClassificationResult:
-        return self.classifier.classify(text)
 
     # -- Tạo tài liệu HSMT rỗng (chưa sinh mục nào) ----------------------------
     def create_document(self, doc_id: str, package: TenderNotice, fields: list[ExtractedField]) -> HSMTDocument:

@@ -69,8 +69,6 @@ class CrawlerSettings(BaseModel):
 
 class ModelsSettings(BaseModel):
     ner: dict[str, Any] = {}
-    classifier: dict[str, Any] = {}
-    retriever: dict[str, Any] = {}
     generator: dict[str, Any] = {}
     compliance: dict[str, Any] = {}
     qa: dict[str, Any] = {}

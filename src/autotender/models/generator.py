@@ -12,9 +12,9 @@ bằng slot-filling từ `ExtractedField`, KHÔNG để mô hình tự sinh. Sau
 con số đã biết từ KHLCNT — lệch thì gắn cờ `R4`.
 
 `_retriever` chấp nhận bất kỳ đối tượng nào có `.retrieve(query, top_k=...)` (duck-typing,
-không ép kiểu `HybridLegalRetriever`) — để `scripts/evaluate.py` (ablation Phase 1 cũ) vẫn
-truyền được `RetrieverModule` (BM25 Tier 3) làm ví dụ "no-RAG" (retrieve trả về rỗng) mà
-không cần sửa lại.
+không ép kiểu `HybridLegalRetriever`) — để test (`tests/test_generator.py`) truyền vào
+retriever giả lập (trả về rỗng/kết quả cố định) mà không cần dựng `HybridLegalRetriever`
+thật (chậm, cần corpus + embedding model).
 """
 
 from __future__ import annotations

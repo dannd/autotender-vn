@@ -1,12 +1,11 @@
-"""Chunking corpus RAG theo điều/khoản/mục (Mục 6/M4).
+"""Chunking corpus RAG luật thật theo Điều/Khoản (đề cương RAG+LLM 15 ngày).
 
-Quy ước file corpus: mỗi heading `## ` đánh dấu biên giới một mục — chunk theo mục,
-nếu mục quá dài (> max_words) thì cắt tiếp theo cửa sổ trượt có overlap.
+Mỗi `LegalArticle` (1 Điều, xem `scripts/fetch_legal_corpus.py`) mặc định là 1 chunk —
+nếu quá dài thì cắt theo ranh giới Khoản (`chunk_legal_article`/`_split_by_khoan`) để
+mỗi chunk vẫn là một đơn vị pháp lý trọn vẹn, không bị cắt giữa câu.
 
-Ghi chú: spec quy định "tối đa 512 token, overlap 64" — ở đây xấp xỉ bằng số từ
-(word count) thay vì token thật của tokenizer, vì việc chunk xảy ra trước khi biết
-sẽ dùng tokenizer nào (PhoBERT/XLM-R có subword tokenizer khác nhau). Sai số này
-được chấp nhận cho phạm vi đồ án 7 ngày.
+Ghi chú: ngưỡng `MAX_WORDS`/`OVERLAP_WORDS` xấp xỉ bằng số từ (word count) thay vì token
+thật của tokenizer, vì việc chunk xảy ra trước khi biết sẽ dùng embedding model nào.
 """
 
 from __future__ import annotations
@@ -22,7 +21,6 @@ from autotender.schemas import LegalArticle
 MAX_WORDS = 400  # xấp xỉ 512 token
 OVERLAP_WORDS = 50  # xấp xỉ 64 token
 
-_HEADING_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
 _KHOAN_RE = re.compile(r"^(\d+)\.\s+", re.MULTILINE)
 
 
@@ -31,8 +29,8 @@ class RawChunk:
     chunk_id: str
     text: str
     source_doc: str
-    # Metadata pháp lý (tuỳ chọn) — rỗng cho corpus markdown minh hoạ cũ, có giá trị
-    # cho corpus luật thật (xem chunk_legal_article).
+    # Metadata pháp lý — luôn có giá trị (mọi chunk đều đến từ corpus luật thật, xem
+    # chunk_legal_article).
     law_id: str | None = None
     dieu_so: int | None = None
 
@@ -55,54 +53,6 @@ def _split_long_section(text: str, max_words: int, overlap_words: int) -> list[s
             break
         start = end - overlap_words
     return parts
-
-
-def chunk_markdown_file(path: str | Path, doc_label: str | None = None) -> list[RawChunk]:
-    """Chunk một file corpus markdown theo heading `## `.
-
-    `doc_label` là tên nguồn hiển thị cho người dùng (vd "[MINH HỌA] Mẫu Chương III").
-    Nếu không truyền, dùng dòng `# ` đầu file (title) làm nhãn.
-    """
-    path = Path(path)
-    content = path.read_text(encoding="utf-8")
-
-    title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
-    label = doc_label or (title_match.group(1) if title_match else path.stem)
-
-    headings = list(_HEADING_RE.finditer(content))
-    chunks: list[RawChunk] = []
-
-    if not headings:
-        sections = [(label, content)]
-    else:
-        sections = []
-        for i, m in enumerate(headings):
-            start = m.end()
-            end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
-            heading_title = m.group(1).strip()
-            sections.append((f"{label} — {heading_title}", content[start:end].strip()))
-
-    idx = 0
-    for section_label, section_text in sections:
-        if not section_text.strip():
-            continue
-        for part in _split_long_section(section_text, MAX_WORDS, OVERLAP_WORDS):
-            chunks.append(
-                RawChunk(chunk_id=_make_chunk_id(section_label, idx), text=part.strip(), source_doc=section_label)
-            )
-            idx += 1
-    return chunks
-
-
-def chunk_corpus_dir(corpus_dir: str | Path) -> list[RawChunk]:
-    """Chunk toàn bộ file `.md` trong thư mục corpus (bỏ qua README.md)."""
-    corpus_dir = Path(corpus_dir)
-    all_chunks: list[RawChunk] = []
-    for path in sorted(corpus_dir.glob("*.md")):
-        if path.name.lower() == "readme.md":
-            continue
-        all_chunks.extend(chunk_markdown_file(path))
-    return all_chunks
 
 
 def _split_by_khoan(text: str, max_words: int, overlap_words: int) -> list[tuple[str | None, str]]:

@@ -84,18 +84,21 @@ chế cùng dựa trên khớp chuỗi, KHÔNG phải năng lực tổng quát h
 đúng yêu cầu Mục 6/M2 SPEC (việc gán tay quy mô lớn nằm ngoài phạm vi tự động hoá của
 đồ án 7 ngày, cần thực hiện thủ công trên dữ liệu crawl thật khi có).
 
-Tương tự, `m4_retrieval.bm25_proxy_recall_at_5` dùng proxy "đúng nếu top-5 chứa chunk từ
-đúng file chương" thay vì tập câu hỏi–chunk gán tay độc lập.
+Tương tự, `m4_retrieval.bm25_proxy_recall_at_5` (số liệu lịch sử, module `models/retriever.py`
+sinh ra nó đã gỡ khỏi repo) dùng proxy "đúng nếu top-5 chứa chunk từ đúng file chương" thay
+vì tập câu hỏi–chunk gán tay độc lập — xem Mục 12 để biết tập gán tay độc lập thay thế.
 
 ---
 
 ## 6. Tập test Compliance (M6)
 
 10 câu được biên soạn thủ công, phủ đều 4 lớp (R1, R2, R3, OK), dùng để tính precision/
-recall/F1 trong `scripts/evaluate.py::evaluate_compliance`. Do bộ test do cùng người viết
-rule biên soạn, kết quả F1 cao (gần 1.0) không đại diện cho hiệu năng trên câu văn E-HSMT
-thật đa dạng hơn — cần mở rộng tập test bằng dữ liệu HSMT thật + phản hồi HITL
-(`hitl/feedback.py`) trước khi dùng số liệu này để so sánh với Tier 1 thật.
+recall/F1 — số liệu ghi trong `docs/MODEL_CARD.md` là ảnh chụp cố định từ lần chạy cuối
+của `scripts/evaluate.py` (đã gỡ khỏi repo khi dọn hệ Tier1/2/3 cũ đã bị thay thế bởi
+RAG+LLM). Do bộ test do cùng người viết rule biên soạn, kết quả F1 cao (gần 1.0) không đại
+diện cho hiệu năng trên câu văn E-HSMT thật đa dạng hơn — cần mở rộng tập test bằng dữ liệu
+HSMT thật + phản hồi HITL (`hitl/feedback.py`) trước khi dùng số liệu này để so sánh với
+Tier 1 thật.
 
 ---
 
@@ -105,8 +108,9 @@ thật đa dạng hơn — cần mở rộng tập test bằng dữ liệu HSMT 
 generated→edited) và `feedback_compliance_{date}.jsonl` (nhãn đúng/sai người dùng xác
 nhận cho từng cờ). Đây là cơ chế để, khi hệ thống được dùng thật, dữ liệu chất lượng cao
 hơn dữ liệu tổng hợp ở trên sẽ tích luỹ dần và dùng để huấn luyện lại M5/M6 — xem
-`notebooks/03_train_retriever.ipynb` và `notebooks/04_train_generator.ipynb` để biết cách
-dữ liệu phản hồi này được đưa vào vòng huấn luyện tiếp theo.
+`notebooks/04_train_generator.ipynb` để biết cách dữ liệu phản hồi này được đưa vào vòng
+huấn luyện tiếp theo (notebook train M4-retriever cũ đã gỡ cùng `models/retriever.py`,
+xem `docs/MODEL_CARD.md`).
 
 ---
 
