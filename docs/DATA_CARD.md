@@ -203,3 +203,90 @@ hợp + 12 muasamcong + 489 dauthau.asia = 521 bản ghi) để sinh `data/proce
 và `classifier_dataset.jsonl`. Đánh giá lại M2/M3 trên bộ 521 bản ghi này (`docs/MODEL_CARD.md`)
 cho kết quả trung thực hơn hẳn, và ở quy mô này baseline TF-IDF+LogisticRegression đã vượt
 Tier 3 rule-based cho M3 — đúng dự đoán lý thuyết, minh chứng cho lý do cần Tier 1.
+
+---
+
+## 10. Kho tri thức pháp luật thật cho RAG (`data/samples/legal_corpus/`) — bản redesign RAG+LLM
+
+Theo đề cương mới (`de-cuong-hsmt-rag-cntt-phan-mem.pdf`), corpus RAG chuyển từ văn bản
+**minh hoạ** (Mục 4) sang văn bản pháp luật **thật, nguyên văn**, lấy theo từng Điều bằng
+`src/autotender/knowledge/legal_fetch.py` (Playwright, không dùng WebFetch để tránh tóm tắt
+qua model nhỏ — xem docstring module này). Văn bản quy phạm pháp luật không thuộc đối tượng
+bảo hộ quyền tác giả (Điều 15 Luật Sở hữu trí tuệ VN) nên lưu trữ nguyên văn là hợp lệ.
+
+| Văn bản | File | Số Điều lấy được | Nguồn |
+|---|---|---|---|
+| Luật Đấu thầu 22/2023/QH15 (hợp nhất 57/2024, 90/2025) | `luat_22_2023_qh15.jsonl` | 90/93 (xem giới hạn dưới) | dauthau.gxd.vn |
+| Nghị định 214/2025/NĐ-CP (thay NĐ 24/2024/NĐ-CP) | `nd_214_2025_ndcp.jsonl` | 145/146 | dauthau.gxd.vn |
+
+**Phát hiện quan trọng — NĐ 24/2024/NĐ-CP đã hết hiệu lực:** lần fetch đầu tiên nhắm vào
+Nghị định 24/2024/NĐ-CP (đúng như đề cương liệt kê), nhưng khi đối chiếu nội dung Điều 44
+Luật (bản hợp nhất) đã đơn giản hoá đáng kể so với cấu trúc 7 thành phần cũ, tra cứu lại thì
+NĐ 24/2024/NĐ-CP **đã được thay thế bởi Nghị định 214/2025/NĐ-CP (hiệu lực từ 04/8/2025)**.
+Đã fetch lại đúng văn bản hiện hành, xoá file `nd_24_2024_ndcp.jsonl` cũ khỏi corpus. Đây là
+lý do quan trọng phải luôn kiểm tra hiệu lực văn bản trước khi đưa vào RAG, không chỉ tin
+theo tên văn bản nêu trong đề cương gốc.
+
+**Giới hạn đã biết (không chặn tiến độ, ghi rõ để minh bạch):**
+1. **Luật hợp nhất thiếu Điều 2, 5, 90-93**: Điều 90-93 bị ẩn/collapsed trên trang nguồn
+   (chỉ còn ký tự phân cách "⋮", không có nội dung thật — `_is_meaningful_text()` phát hiện
+   và loại bỏ đúng, không lưu bản ghi rỗng); Điều 2, 5 không xuất hiện trong khoảng
+   start/end marker đã chọn (có thể đã bị bãi bỏ bởi luật sửa đổi — cần xác minh thêm nếu
+   dùng cho báo cáo chính thức).
+2. **NĐ 214/2025/NĐ-CP thiếu Điều 145 "Hiệu lực thi hành"**: heading này hoàn toàn không
+   xuất hiện trong text hiển thị (`inner_text`) dù có xuất hiện dưới dạng link neo (anchor)
+   trên trang — dấu hiệu của một phần tử DOM bị ẩn bởi CSS/JS (không phải lỗi parser). Đây là
+   điều khoản về ngày hiệu lực, không phải nội dung nghiệp vụ cần cho việc soạn HSMT.
+3. **Thông tư 01/2024/TT-BKHĐT và 22/2024/TT-BKHĐT — CHƯA đưa vào corpus**: trang nguồn
+   (dauthau.gxd.vn) cho 2 thông tư này bị lặp/chồng nội dung giữa các heading "Điều N."
+   (một số đoạn xuất hiện 2 lần, một số heading Điều bị thiếu — khác hẳn hành vi sạch của
+   trang Luật/Nghị định), cần thêm công sức xử lý riêng (vd parse trực tiếp từ HTML thay vì
+   `inner_text`, hoặc tìm nguồn khác) mà nhóm chưa ưu tiên trong 15 ngày vì đây là 2 văn bản
+   phụ (quy định thủ tục nộp/đăng tải hồ sơ qua Hệ thống mạng đấu thầu quốc gia — không phải
+   căn cứ pháp lý cho nội dung HSMT cần trích dẫn khi soạn thảo) — nội dung chính giá trị
+   nhất của 2 thông tư này (42+23 **mẫu hồ sơ** E-HSMT dạng Word/Excel) vốn dĩ không phù hợp
+   với pipeline trích dẫn theo Điều/Khoản, sẽ được xử lý riêng như template tham khảo cho
+   module sinh (M5) nếu còn thời gian, không phải như chunk RAG có trích dẫn pháp lý.
+4. **Nghị định 45/2026/NĐ-CP — KHÔNG lấy được, ngoài phạm vi có chủ đích**: bản PDF chính
+   thức duy nhất tìm được (`datafiles.chinhphu.vn/cpp/files/vbpq/2026/01/45-ndcp.signed.pdf`)
+   là **văn bản scan dạng ảnh** (73 trang, mỗi trang 1 ảnh TIFF, `pypdf` trích xuất được 0 ký
+   tự chữ) — không có lớp text. Xử lý OCR cho văn bản scan **nằm ngoài phạm vi đề cương**
+   (Mục "Việc KHÔNG làm"), nên không xử lý văn bản này. Nội dung liên quan (phần mềm nội bộ
+   áp dụng mẫu HSMT mua sắm hàng hoá) chỉ được ghi nhận qua tóm tắt tìm kiếm web, KHÔNG đưa
+   vào corpus RAG dưới dạng trích dẫn — tránh vi phạm nguyên tắc "Không bịa đặt".
+
+**Kết luận:** corpus hiện tại (Luật + Nghị định 214/2025, 235 Điều thật) đã đủ để xây dựng
+retrieval + compliance checker cho phần lõi (Chương III năng lực-kinh nghiệm, Điều 44 nội
+dung HSMT) đúng target Mức 1-2 của đề cương. Việc bổ sung 2 Thông tư sẽ được đánh giá lại sau
+khi có Ngày 5 (chunker + index) chạy thử — nếu retrieval cho câu hỏi về thủ tục nộp thầu qua
+mạng thiếu căn cứ rõ ràng, sẽ quay lại xử lý.
+
+---
+
+## 11. Best-effort tải HSMT phần mềm thật đã duyệt — kết quả: bị chặn như dự kiến
+
+Theo rủi ro đã liệt kê sẵn trong kế hoạch (Mục "Rủi ro cần lưu ý #1"), đã thử tải file
+E-HSMT thật cho gói thầu phần mềm/CNTT, theo đúng quy trình:
+
+1. **Lọc 489 bản ghi `real_dauthau_asia_sample.jsonl`** theo từ khoá phần mềm/CNTT
+   (`phần mềm`, `CNTT`, `công nghệ thông tin`, `hệ thống thông tin`, `ứng dụng`, `máy chủ`...)
+   trên `package_name`/`package_type` → **16 gói thầu phù hợp** (vd "Gói thầu TV08: Mua sắm
+   trang thiết bị, phần mềm thương mại" — Cục CNTT Bộ Tư pháp; "Thuê hệ thống phần mềm quản
+   lý tổng thể bệnh viện"...).
+2. **Ghé trang chi tiết** (`MscHttpClient` httpx, dùng lại rate-limit/cache/robots.txt của
+   crawler dauthau.asia Mục 9 — **không** dùng Playwright ở bước này vì Playwright độc lập
+   bị Cloudflare chặn ngay khi thử, đúng như hành vi WAF đã ghi nhận với muasamcong ở Mục 8).
+3. **Kết quả:** trang chi tiết hiển thị công khai **cấu trúc** hồ sơ (tên chương: "Chương I:
+   Chỉ dẫn nhà thầu", "Chương II: Bảng dữ liệu", "Chương III: Tiêu chuẩn đánh giá HSDT"...,
+   tên file đính kèm như "Yeu cau Chuong 3.pdf") nhưng **nút tải file yêu cầu đăng nhập**
+   (`Đăng nhập`/`Đăng ký`), và ngay cả sau đăng nhập, trang nói rõ: tải trực tiếp trên Hệ
+   thống Mua Sắm Công **chỉ chạy trên Windows + phần mềm Client Agent riêng** (không hỗ trợ
+   Linux/macOS), hoặc cần tài khoản trả phí DauThau.info để bỏ qua bước này.
+
+**Quyết định:** KHÔNG tạo tài khoản/đăng nhập để tải file (vi phạm nguyên tắc không tạo tài
+khoản/nhập thông tin xác thực khi thu thập dữ liệu tự động). Việc này xác nhận đúng rủi ro đã
+dự đoán trước — không phải lỗi kỹ thuật có thể sửa được trong phạm vi 15 ngày. Corpus RAG vẫn
+chạy tốt chỉ với luật thật (Mục 10); phần "mẫu HSMT phần mềm thật" sẽ **không có** trong hệ
+thống — nếu cần minh hoạ cấu trúc gói thầu phần mềm thật cho báo cáo, có thể trích riêng danh
+sách 16 bản ghi này (tên gói, chủ đầu tư, cấu trúc chương — không phải nội dung file) làm ví
+dụ định tính, không đưa vào corpus RAG dưới dạng trích dẫn có căn cứ.
