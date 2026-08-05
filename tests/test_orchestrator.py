@@ -2,7 +2,8 @@ from autotender.pipeline.orchestrator import Orchestrator
 from autotender.schemas import TenderNotice
 
 
-def test_orchestrator_full_flow_from_text_to_generated_sections():
+def test_orchestrator_full_flow_from_text_to_generated_sections(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     orch = Orchestrator()
 
     raw_text = (

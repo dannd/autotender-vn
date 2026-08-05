@@ -29,6 +29,7 @@ faiss-cpu>=1.8
 
 # --- LLM (RAG+LLM redesign — dùng có sẵn, không tự train) ---
 anthropic>=0.40
+python-dotenv>=1.0
 
 # --- Phân tích DL: trực quan hoá không gian embedding (Giai đoạn 3) ---
 umap-learn>=0.5

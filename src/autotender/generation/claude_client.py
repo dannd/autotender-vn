@@ -2,11 +2,23 @@
 hướng đề cương RAG+LLM). Đọc API key từ biến môi trường chuẩn `ANTHROPIC_API_KEY` (SDK tự
 đọc, không cần biến riêng của dự án) — nếu thiếu, raise `ClaudeUnavailableError` để tầng
 gọi (`BaseModule._try_tier1`) bắt và rơi xuống tier dự phòng, KHÔNG làm sập ứng dụng.
+
+Tự nạp `.env` ở gốc dự án (nếu có) khi import module này — cho phép cấu hình
+`ANTHROPIC_API_KEY` một lần trong file cục bộ (đã gitignore, KHÔNG commit) thay vì phải
+`export`/`set` biến môi trường thủ công mỗi phiên terminal hay mỗi lần chạy Streamlit.
+`load_dotenv` không ghi đè biến môi trường đã có sẵn trong shell (`override=False` mặc
+định) — biến môi trường thật (vd CI/CD) luôn được ưu tiên hơn `.env`.
 """
 
 from __future__ import annotations
 
 import os
+
+from dotenv import load_dotenv
+
+from autotender.config import PROJECT_ROOT
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 class ClaudeUnavailableError(Exception):

@@ -6,7 +6,8 @@ from autotender.models.ner import NERModule
 from autotender.schemas import TenderNotice
 
 
-def test_end_to_end_generate_chuong_iii_from_sample_khlcnt():
+def test_end_to_end_generate_chuong_iii_from_sample_khlcnt(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     notice = TenderNotice(
         tbmt_id="IB2601099",
         package_name="Gói thầu số 99: Mua sắm máy chủ và thiết bị lưu trữ",

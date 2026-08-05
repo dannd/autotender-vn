@@ -17,7 +17,8 @@ def _fields() -> list[ExtractedField]:
     ]
 
 
-def test_generator_tier3_fills_slots_without_any_checkpoint():
+def test_generator_tier3_fills_slots_without_any_checkpoint(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     module = GeneratorModule()
     result = module.generate_section("chuong_III.muc_4", _fields())
 
