@@ -74,6 +74,17 @@ class LegalArticle(BaseModel):
     fetched_at: datetime
 
 
+class QAAnswer(BaseModel):
+    """Kết quả Mức 1 — Hỏi-đáp có trích dẫn (đề cương RAG+LLM). Khác `HSMTSection`: không
+    có luồng phê duyệt HITL, chỉ trả lời trực tiếp một câu hỏi tự do của người dùng."""
+
+    question: str
+    answer: str
+    citations: list[RetrievedChunk] = Field(default_factory=list)
+    model_used: str  # "claude-..." nếu qua LLM, "template" nếu Tier fallback không LLM
+    generated_at: datetime
+
+
 class ComplianceFlag(BaseModel):
     """Cờ tuân thủ do module M6 (Compliance Guard) gắn vào một câu sinh ra."""
 

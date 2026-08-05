@@ -73,6 +73,7 @@ class ModelsSettings(BaseModel):
     retriever: dict[str, Any] = {}
     generator: dict[str, Any] = {}
     compliance: dict[str, Any] = {}
+    qa: dict[str, Any] = {}
 
 
 @lru_cache

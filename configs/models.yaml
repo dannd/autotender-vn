@@ -34,3 +34,13 @@ compliance:
   rule_codes: ["R1", "R2", "R3", "R4", "OK"]
   brand_dictionary: ["Cisco", "Dell", "HP", "Hewlett Packard", "Samsung", "IBM", "Lenovo", "Intel", "Microsoft", "Apple", "Huawei", "Sony", "Canon", "Epson", "Fujitsu", "Oracle", "SAP"]
   revenue_ratio_threshold: 3.0
+
+# Module Hỏi-đáp RAG+LLM (Mức 1, đề cương RAG+LLM 15 ngày) — khác cơ chế 3-tier "tự train"
+# ở trên: tier 1 = Claude API (đường chính), tier 2 = không dùng (dự phòng cho tương lai),
+# tier 3 = liệt kê trích dẫn không qua LLM (luôn thành công, không cần API key).
+qa:
+  claude_model: "claude-sonnet-5"
+  embedding_model_key: "vi_bi_encoder"
+  candidate_k: 50
+  top_k_citations: 5
+  max_tokens: 1024

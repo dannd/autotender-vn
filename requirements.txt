@@ -27,6 +27,9 @@ scikit-learn>=1.4
 # --- Vector store ---
 faiss-cpu>=1.8
 
+# --- LLM (RAG+LLM redesign — dùng có sẵn, không tự train) ---
+anthropic>=0.40
+
 # --- Templating / PDF export ---
 jinja2>=3.1
 weasyprint>=61.0
