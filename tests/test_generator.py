@@ -1,3 +1,8 @@
+import json
+
+import pytest
+
+from autotender.models import generator as generator_module
 from autotender.models.generator import GeneratorModule, verify_numeric_consistency
 from autotender.schemas import ExtractedField
 
@@ -45,3 +50,46 @@ def test_verify_numeric_consistency_no_flag_when_numbers_match():
     text = "Giá gói thầu là 5.200.000.000 đồng, thời gian thực hiện 90 ngày."
     flags = verify_numeric_consistency(text, fields)
     assert flags == []
+
+
+def test_generate_section_uses_claude_when_available(monkeypatch, tmp_path):
+    faiss = pytest.importorskip("faiss")
+    from autotender.rag.hybrid_retriever import HybridLegalRetriever
+    from autotender.rag.index import FaissChunkIndex
+
+    chunk = {
+        "chunk_id": "c1", "text": "Yêu cầu về nhãn hiệu, xuất xứ hàng hóa phải nêu tương đương.",
+        "source_doc": "Điều 44, Khoản 3", "law_id": "x", "dieu_so": 44,
+    }
+    with open(tmp_path / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps(chunk, ensure_ascii=False) + "\n")
+    model_dir = tmp_path / "vi_bi_encoder"
+    model_dir.mkdir()
+    index = FaissChunkIndex(dim=4)
+    index.add([[1.0, 0.0, 0.0, 0.0]])
+    index.save(model_dir / "index.faiss")
+    (model_dir / "dim.txt").write_text("4", encoding="utf-8")
+
+    retriever = HybridLegalRetriever(model_key="vi_bi_encoder", index_dir=tmp_path)
+
+    class _FakeEncoder:
+        def encode(self, texts, show_progress_bar=False):
+            import numpy as np
+
+            return np.asarray([[1.0, 0.0, 0.0, 0.0] for _ in texts], dtype="float32")
+
+    retriever._encoder = _FakeEncoder()
+    monkeypatch.setattr(
+        "autotender.rag.hybrid_retriever.rerank_with_cross_encoder",
+        lambda model_name, query, candidates, top_k: [(0, 1.0)],
+    )
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(generator_module, "call_claude", lambda **kwargs: "Nội dung do Claude soạn (Điều 44).")
+
+    module = GeneratorModule(retriever=retriever)
+    result = module.generate_section("chuong_III.muc_4", _fields())
+
+    assert module.active_tier == 1
+    assert "Claude" in result.text
+    assert len(result.citations) == 1
+    assert result.citations[0].dieu_so == 44

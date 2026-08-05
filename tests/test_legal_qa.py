@@ -42,6 +42,7 @@ def retriever(tmp_path):
 
 
 def test_ask_uses_claude_when_available(monkeypatch, retriever):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
     module = LegalQAModule(retriever=retriever)
     module._cfg = dict(module._cfg, use_rerank=False)  # tránh gọi cross-encoder thật (cần mạng) trong unit test
     monkeypatch.setattr(

@@ -6,6 +6,15 @@ RRF được chọn thay vì weighted-sum vì không cần chuẩn hoá thang đ
 hẳn nhau (cosine similarity của FAISS vs BM25 score không cùng đơn vị) — chỉ dùng thứ hạng
 (rank), công thức chuẩn: score(d) = sum_{hệ thống} 1 / (k + rank_hệ_thống(d)), k=60 (giá trị
 phổ biến trong literature, ít nhạy với k trong khoảng 10-100).
+
+Metadata chunk (`chunks.jsonl`) và index FAISS đều là ARTIFACT build được từ
+`scripts/build_legal_index.py`, không commit vào git (`.gitignore`). Nếu chưa build,
+`__init__` tự chunk lại trực tiếp từ `data/samples/legal_corpus/*.jsonl` (đã commit, chunk
+nhanh — không cần ML) để BM25/`retrieve_sparse` LUÔN dùng được ngay cả khi chưa chạy script
+build — giữ đúng nguyên tắc "Tier 3 luôn thành công" cho các module gọi retriever này
+(`models/generator.py`, `models/legal_qa.py`). Chỉ riêng FAISS (dense) mới thật sự cần
+`scripts/build_legal_index.py` — thiếu thì `retrieve_dense`/`retrieve`/`retrieve_reranked`
+raise lỗi rõ ràng, các module gọi (Tier 1) tự rơi xuống Tier 3 (`BaseModule.run`).
 """
 
 from __future__ import annotations
@@ -31,20 +40,33 @@ class HybridLegalRetriever:
         self.model_name = EMBEDDING_MODELS[model_key]
         self._index_dir = Path(index_dir) if index_dir else resolve_path("data/index")
 
-        self._chunks = self._load_chunk_metadata(self._index_dir / "chunks.jsonl")
+        chunks_path = self._index_dir / "chunks.jsonl"
+        if chunks_path.exists():
+            self._chunks = self._load_chunk_metadata(chunks_path)
+        else:
+            self._chunks = self._chunk_legal_corpus_directly()
         if not self._chunks:
-            raise RuntimeError(
-                f"Không tìm thấy chunk metadata tại {self._index_dir / 'chunks.jsonl'} — "
-                "chạy scripts/build_legal_index.py trước."
-            )
+            raise RuntimeError("Kho tri thức luật thật rỗng — kiểm tra data/samples/legal_corpus/*.jsonl.")
 
+        self._faiss_index: FaissChunkIndex | None = None
         model_dir = self._index_dir / model_key
-        dim = int((model_dir / "dim.txt").read_text(encoding="utf-8").strip())
-        self._faiss_index = FaissChunkIndex.load(model_dir / "index.faiss", dim=dim)
+        dim_path, index_path = model_dir / "dim.txt", model_dir / "index.faiss"
+        if dim_path.exists() and index_path.exists():
+            self._faiss_index = FaissChunkIndex.load(index_path, dim=int(dim_path.read_text(encoding="utf-8").strip()))
 
         self._bm25_index: BM25Index | None = None
         self._encoder = None  # tải trễ — chỉ cần khi có truy vấn thật
         self._cross_encoder_name = CROSS_ENCODER_MODEL
+
+    @staticmethod
+    def _chunk_legal_corpus_directly() -> list[dict]:
+        from autotender.rag.chunker import chunk_legal_corpus_dir
+
+        raw_chunks = chunk_legal_corpus_dir(resolve_path("data/samples/legal_corpus"))
+        return [
+            {"chunk_id": c.chunk_id, "text": c.text, "source_doc": c.source_doc, "law_id": c.law_id, "dieu_so": c.dieu_so}
+            for c in raw_chunks
+        ]
 
     @staticmethod
     def _load_chunk_metadata(path: Path) -> list[dict]:
@@ -80,6 +102,11 @@ class HybridLegalRetriever:
         )
 
     def retrieve_dense(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
+        if self._faiss_index is None:
+            raise RuntimeError(
+                f"Chưa có FAISS index cho model '{self.model_key}' tại {self._index_dir / self.model_key} — "
+                "chạy `python scripts/build_legal_index.py` trước."
+            )
         encoder = self._get_encoder()
         query_vec = encoder.encode([query], show_progress_bar=False)[0]
         indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
@@ -88,8 +115,13 @@ class HybridLegalRetriever:
     def retrieve_sparse(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
         return self._get_bm25().search(query, min(top_k, len(self._chunks)))
 
+
     def _fuse_rrf(self, query: str, candidate_k: int) -> list[tuple[int, float]]:
-        dense = self.retrieve_dense(query, candidate_k)
+        # Dense chỉ chạy được nếu đã build FAISS (`scripts/build_legal_index.py`); nếu chưa,
+        # coi như không có kết quả dense thay vì raise — để `retrieve`/`retrieve_reranked`
+        # luôn thành công (BM25-only), giữ nguyên tắc "Tier 3 luôn chạy được" cho các module
+        # gọi retriever này mà không cần biết trước FAISS đã sẵn sàng hay chưa.
+        dense = self.retrieve_dense(query, candidate_k) if self._faiss_index is not None else []
         sparse = self.retrieve_sparse(query, candidate_k)
 
         rrf_scores: dict[int, float] = {}

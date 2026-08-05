@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from autotender.config import get_models_settings
 from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
+from autotender.generation.claude_client import is_configured as is_claude_configured
 from autotender.models.base import BaseModule, TierUnavailableError
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import QAAnswer, RetrievedChunk
@@ -57,6 +58,9 @@ class LegalQAModule(BaseModule[QAAnswer]):
 
     # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, question: str) -> QAAnswer:
+        if not is_claude_configured():
+            raise TierUnavailableError("ANTHROPIC_API_KEY chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
+
         citations = self._retrieve_citations(question)
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan.")

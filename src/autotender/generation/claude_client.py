@@ -14,6 +14,12 @@ class ClaudeUnavailableError(Exception):
     trọng, tầng gọi cần bắt exception này và dùng phương án dự phòng."""
 
 
+def is_configured() -> bool:
+    """Kiểm tra nhanh (không gọi mạng) xem có nên thử Tier 1 hay không — dùng để tránh làm
+    công việc truy xuất/rerank tốn thời gian rồi mới phát hiện thiếu API key."""
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
 def call_claude(system: str, user_prompt: str, model: str, max_tokens: int = 1024, temperature: float = 0.2) -> str:
     """Gọi Claude API 1 lượt (không giữ lịch sử hội thoại — mỗi câu hỏi/mục độc lập theo
     đúng thiết kế RAG: ngữ cảnh luôn đến từ retrieval, không phải từ hội thoại trước đó)."""

@@ -100,3 +100,23 @@ def test_retrieve_reranked_returns_empty_when_no_candidates(index_dir):
     retriever._fuse_rrf = lambda query, candidate_k: []  # type: ignore[method-assign]
 
     assert retriever.retrieve_reranked("bất kỳ", top_k=3) == []
+
+
+def test_missing_faiss_index_falls_back_to_bm25_only_without_error(tmp_path):
+    """Chưa chạy scripts/build_legal_index.py (thư mục index rỗng) — retrieve() vẫn phải
+    thành công bằng cách tự chunk từ data/samples/legal_corpus/*.jsonl (đã commit) và chỉ
+    dùng BM25 (không dense), giữ đúng nguyên tắc "Tier 3 luôn chạy được" cho generator/QA."""
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=tmp_path)
+
+    assert retriever.num_chunks > 0  # tự chunk từ corpus luật thật đã commit
+    assert retriever._faiss_index is None
+
+    results = retriever.retrieve("hồ sơ mời thầu gồm những nội dung gì", top_k=3)
+    assert len(results) > 0
+
+
+def test_retrieve_dense_raises_clear_error_when_faiss_missing(tmp_path):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=tmp_path)
+
+    with pytest.raises(RuntimeError, match="build_legal_index"):
+        retriever.retrieve_dense("bất kỳ")

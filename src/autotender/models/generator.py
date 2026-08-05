@@ -1,28 +1,32 @@
-"""M5 — Sinh dự thảo Chương III và Chương V của E-HSMT (Mục 6/M5).
+"""M5 — Sinh dự thảo Chương III và Chương V của E-HSMT (Mức 2, đề cương RAG+LLM).
 
-Tier 1: `VietAI/vit5-base` fine-tune, checkpoint `models/generator_vit5`.
-Tier 2: LLM API bên ngoài (OpenAI-compatible `/chat/completions`), CHỈ dùng nếu người
-        dùng cấu hình biến môi trường `AUTOTENDER_LLM_API_KEY` — không tự ý gọi ra
-        ngoài nếu người dùng không cấu hình (tôn trọng chi phí/quyền riêng tư).
-Tier 3: Template filling thuần từ mẫu Thông tư (`data/samples/corpus/mau_hsmt_*.md`)
-        — LUÔN THÀNH CÔNG.
+Tier 1: Claude API (LLM có sẵn, KHÔNG tự train — đúng hướng redesign) + ngữ cảnh RAG
+        (hybrid retrieval, `rag/hybrid_retriever.py`) — đường CHÍNH.
+Tier 2: chưa dùng (chỗ dự phòng cho LLM khác nếu cần đổi nhà cung cấp sau này).
+Tier 3: Template filling thuần (chèn trực tiếp trích dẫn Điều/Khoản liên quan nhất) —
+        không cần API key, LUÔN THÀNH CÔNG.
 
 NGUYÊN TẮC BẮT BUỘC (Mục 2.2): số liệu (giá gói thầu, thời gian, nguồn vốn) được chèn
 bằng slot-filling từ `ExtractedField`, KHÔNG để mô hình tự sinh. Sau khi sinh, verifier
 `verify_numeric_consistency` so khớp mọi con số xuất hiện trong văn bản sinh ra với các
 con số đã biết từ KHLCNT — lệch thì gắn cờ `R4`.
+
+`_retriever` chấp nhận bất kỳ đối tượng nào có `.retrieve(query, top_k=...)` (duck-typing,
+không ép kiểu `HybridLegalRetriever`) — để `scripts/evaluate.py` (ablation Phase 1 cũ) vẫn
+truyền được `RetrieverModule` (BM25 Tier 3) làm ví dụ "no-RAG" (retrieve trả về rỗng) mà
+không cần sửa lại.
 """
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from autotender.config import get_models_settings, resolve_path
+from autotender.config import get_models_settings
+from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
+from autotender.generation.claude_client import is_configured as is_claude_configured
 from autotender.models.base import BaseModule, TierUnavailableError
-from autotender.models.retriever import RetrieverModule
+from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import ComplianceFlag, ExtractedField, RetrievedChunk
 
 SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
@@ -134,14 +138,24 @@ def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]
     return flags
 
 
+_SYSTEM_PROMPT = (
+    "Bạn là trợ lý soạn thảo hồ sơ mời thầu (HSMT) cho gói thầu phần mềm/CNTT tại Việt Nam. "
+    "Hãy soạn nội dung mục được yêu cầu, dựa CHÍNH XÁC vào các trường thông tin gói thầu và "
+    "trích đoạn văn bản pháp luật được cung cấp — KHÔNG bịa số liệu, KHÔNG tự suy diễn điều "
+    "khoản pháp luật ngoài trích đoạn đã cho. Số liệu (giá gói thầu, thời gian, nguồn vốn...) "
+    "PHẢI lấy nguyên văn từ trường thông tin gói thầu, không tự tính toán hay làm tròn khác đi. "
+    "Ghi rõ nguồn căn cứ pháp lý (vd \"(Điều 44, Luật Đấu thầu 22/2023/QH15)\") khi áp dụng một "
+    "quy định cụ thể. Trả lời bằng tiếng Việt, văn phong hành chính, không thêm lời dẫn/kết thừa."
+)
+
+
 class GeneratorModule(BaseModule[GeneratedSection]):
     module_name = "M5-Generator"
 
-    def __init__(self, retriever: RetrieverModule | None = None):
+    def __init__(self, retriever: HybridLegalRetriever | None = None):
         super().__init__()
         self._cfg = get_models_settings().generator
-        self._retriever = retriever or RetrieverModule()
-        self._tier1_pipeline = None
+        self._retriever = retriever or HybridLegalRetriever()
 
     def generate_section(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
         if section_id not in SECTION_DEFINITIONS:
@@ -159,64 +173,36 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         query = SECTION_DEFINITIONS[section_id]["query"]
         return self._retriever.retrieve(query, top_k=top_k)
 
-    # -- Tier 1 -------------------------------------------------------------
+    def _retrieve_context_reranked(self, section_id: str, top_k: int = 5) -> list[RetrievedChunk]:
+        query = SECTION_DEFINITIONS[section_id]["query"]
+        return self._retriever.retrieve_reranked(query, top_k=top_k)
+
+    # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
-        checkpoint = resolve_path(self._cfg.get("tier1_checkpoint", "models/generator_vit5"))
-        if not Path(checkpoint).exists():
-            raise TierUnavailableError(f"Không tìm thấy checkpoint tại {checkpoint}")
-        try:
-            from transformers import pipeline
-        except ImportError as e:
-            raise TierUnavailableError("Thư viện `transformers` chưa cài đặt") from e
+        if not is_claude_configured():
+            raise TierUnavailableError("ANTHROPIC_API_KEY chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
 
-        if self._tier1_pipeline is None:
-            try:
-                self._tier1_pipeline = pipeline("text2text-generation", model=str(checkpoint))
-            except Exception as e:  # noqa: BLE001
-                raise TierUnavailableError(f"Load checkpoint Tier 1 lỗi: {e}") from e
+        citations = self._retrieve_context_reranked(section_id)
+        if not citations:
+            raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan cho mục này.")
 
-        citations = self._retrieve_context(section_id)
+        model = self._cfg.get("claude_model", "claude-sonnet-5")
         prompt = self._build_prompt(section_id, fields, citations)
         try:
-            output = self._tier1_pipeline(prompt, max_length=512)[0]["generated_text"]
-        except Exception as e:  # noqa: BLE001
-            raise TierUnavailableError(f"Suy luận Tier 1 lỗi: {e}") from e
-
-        return GeneratedSection(
-            section_id=section_id, title=SECTION_DEFINITIONS[section_id]["title"], text=output, citations=citations
-        )
-
-    # -- Tier 2 (LLM API — chỉ khi người dùng tự cấu hình key) ---------------
-    def _try_tier2(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
-        api_key_env = self._cfg.get("tier2_api_key_env", "AUTOTENDER_LLM_API_KEY")
-        api_key = os.environ.get(api_key_env)
-        if not api_key:
-            raise TierUnavailableError(f"Biến môi trường {api_key_env} chưa được cấu hình — bỏ qua Tier 2.")
-
-        try:
-            import httpx
-        except ImportError as e:
-            raise TierUnavailableError("Thư viện `httpx` chưa cài đặt") from e
-
-        citations = self._retrieve_context(section_id)
-        prompt = self._build_prompt(section_id, fields, citations)
-        base_url = os.environ.get("AUTOTENDER_LLM_BASE_URL", "https://api.openai.com/v1")
-        model = self._cfg.get("tier2_model", "gpt-4o-mini")
-        try:
-            resp = httpx.post(
-                f"{base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2},
-                timeout=30,
+            text = call_claude(
+                system=_SYSTEM_PROMPT, user_prompt=prompt, model=model,
+                max_tokens=self._cfg.get("max_tokens", 1536),
             )
-            resp.raise_for_status()
-            text = resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:  # noqa: BLE001
-            raise TierUnavailableError(f"Gọi LLM API Tier 2 thất bại: {e}") from e
+        except ClaudeUnavailableError as e:
+            raise TierUnavailableError(str(e)) from e
 
         return GeneratedSection(
             section_id=section_id, title=SECTION_DEFINITIONS[section_id]["title"], text=text, citations=citations
         )
+
+    # -- Tier 2: dự phòng (chưa dùng) -----------------------------------------
+    def _try_tier2(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
+        raise TierUnavailableError("Tier 2 chưa được cấu hình cho module sinh.")
 
     # -- Tier 3 (bắt buộc luôn thành công) -----------------------------------
     def _try_tier3(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
@@ -245,12 +231,10 @@ class GeneratorModule(BaseModule[GeneratedSection]):
     def _build_prompt(section_id: str, fields: list[ExtractedField], citations: list[RetrievedChunk]) -> str:
         definition = SECTION_DEFINITIONS[section_id]
         fields_str = "\n".join(f"- {f.name}: {f.value}" for f in fields)
-        context_str = "\n".join(f"[{c.source_doc}] {c.text}" for c in citations)
+        context_str = "\n\n".join(f"[{c.source_doc}]\n{c.text}" for c in citations)
         return (
-            f"Bạn là trợ lý soạn thảo E-HSMT. Hãy soạn nội dung mục \"{definition['title']}\" "
-            f"thuộc {definition['chapter']}, dựa CHÍNH XÁC vào các trường và tài liệu tham chiếu sau, "
-            f"không được bịa số liệu hay điều khoản pháp luật ngoài tài liệu tham chiếu:\n\n"
-            f"Trường trích xuất từ KHLCNT:\n{fields_str}\n\n"
-            f"Tài liệu tham chiếu:\n{context_str}\n\n"
-            f"Nội dung mục cần soạn:"
+            f"Hãy soạn nội dung mục \"{definition['title']}\" thuộc {definition['chapter']}.\n\n"
+            f"Trường thông tin gói thầu (đã trích xuất từ KHLCNT):\n{fields_str}\n\n"
+            f"Trích đoạn văn bản pháp luật liên quan:\n\n{context_str}\n\n"
+            f"Nội dung mục cần soạn (chỉ trả về nội dung, không thêm tiêu đề mục lặp lại):"
         )

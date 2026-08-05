@@ -22,10 +22,8 @@ retriever:
   top_k_rerank: 5
 
 generator:
-  tier1_checkpoint: "models/generator_vit5"
-  tier1_base: "VietAI/vit5-base"
-  tier2_model: "Qwen2.5-7B-Instruct"
-  tier2_api_key_env: "AUTOTENDER_LLM_API_KEY"
+  claude_model: "claude-sonnet-5"
+  max_tokens: 1536
   sections_supported: ["chuong_III", "chuong_V"]
 
 compliance:
