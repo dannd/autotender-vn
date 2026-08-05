@@ -73,7 +73,9 @@ def run_generation_ablation(n_questions: int, model: str) -> dict:
             continue
 
         try:
-            no_rag_answer = call_claude(system=_NO_RAG_SYSTEM_PROMPT, user_prompt=eq.query, model=model, max_tokens=512)
+            # max_tokens=1024 (không phải 512): phát hiện thực tế khi chạy live — 512 hay
+            # cắt cụt câu trả lời giữa chừng, khiến response bị rỗng hoặc thiếu ý.
+            no_rag_answer = call_claude(system=_NO_RAG_SYSTEM_PROMPT, user_prompt=eq.query, model=model, max_tokens=1024)
             no_rag_judgment = judge_faithfulness(eq.query, citations, no_rag_answer, model=model)
             no_rag_scores.append(_judgment_to_dict(no_rag_judgment))
         except ClaudeUnavailableError as e:
@@ -84,7 +86,7 @@ def run_generation_ablation(n_questions: int, model: str) -> dict:
             rag_answer = call_claude(
                 system="Bạn là trợ lý pháp lý về đấu thầu. Trả lời CHỈ dựa vào trích đoạn sau, trích dẫn nguồn:",
                 user_prompt=f"Trích đoạn:\n{context_str}\n\nCâu hỏi: {eq.query}",
-                model=model, max_tokens=512,
+                model=model, max_tokens=1024,
             )
             rag_judgment = judge_faithfulness(eq.query, citations, rag_answer, model=model)
             rag_scores.append(_judgment_to_dict(rag_judgment))

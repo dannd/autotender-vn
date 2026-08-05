@@ -175,9 +175,11 @@ Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều t
 ngôn ngữ (`multilingual_minilm`, 384d) — 0.145 so với 0.138 — dù similarity tuyệt đối
 thấp hơn; khớp với kết quả Recall@k đo được ở trên.
 
-Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`)
-**cần `ANTHROPIC_API_KEY`** — môi trường phát triển hiện tại chưa cấu hình billing nên
-phần này báo `"status": "N/A"` thay vì số liệu giả — xem `docs/DATA_CARD.md` Mục 13.
+Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`,
+8 câu hỏi): RAG cải thiện faithfulness từ **0.41 → 0.94** và completeness từ **0.44 →
+0.87** so với gọi thẳng LLM không có ngữ cảnh — xem chi tiết + các lỗi kỹ thuật phát hiện
+khi chạy live (temperature/extended thinking/số trích dẫn bị gắn cờ oan) tại
+`docs/DATA_CARD.md` Mục 13.
 
 ---
 

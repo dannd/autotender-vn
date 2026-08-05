@@ -76,6 +76,29 @@ _PLACEHOLDER = "[CẦN NGƯỜI DÙNG BỔ SUNG: {desc}]"
 
 _NUMBER_RE = re.compile(r"\d[\d.,]*\d|\d")
 
+# Số thứ tự mục kiểu "1.1", "2.3" (Claude hay dùng khi soạn danh sách có cấu trúc, xác
+# nhận thực tế khi chạy live) — tiếng Việt dùng dấu phẩy cho số thập phân, không phải dấu
+# chấm, nên "N.N" (1 chữ số . 1 chữ số) gần như luôn là số thứ tự mục, không phải số liệu
+# nghiệp vụ thật. Loại khỏi kiểm tra để tránh cờ R4 giả.
+_OUTLINE_MARKER_RE = re.compile(r"^\d\.\d$")
+
+# Số trong TRÍCH DẪN CĂN CỨ PHÁP LÝ nội tuyến (vd "Điều 26 Nghị định 214/2025/NĐ-CP") —
+# khác bản Tier 3 cũ (chèn nguyên văn `c.text`, lọc bằng cách xoá đúng chuỗi đó), Claude
+# (Tier 1) diễn giải/tóm tắt nên không copy verbatim `c.text` — obviously KHÔNG khớp bằng
+# string replace. Số Điều/Khoản/năm ban hành trong các cụm trích dẫn này KHÔNG PHẢI số
+# liệu gói thầu (giá/thời gian/nguồn vốn) nên không cần đối chiếu KHLCNT — nguồn đã hiển
+# thị tường minh ở panel trích dẫn riêng. Phát hiện thực tế khi chạy live với Claude API.
+_CITATION_REF_RE = re.compile(
+    r"Điều\s+\d+|[Kk]hoản\s+\d+|"
+    r"Nghị định\s+(?:số\s+)?\d+/\d{4}(?:/NĐ-CP)?|"
+    r"Luật(?:\s+Đấu\s+thầu)?\s+(?:số\s+)?\d+/\d{4}/QH\d+|"
+    r"Thông tư\s+(?:số\s+)?\d+/\d{4}(?:/TT-[A-ZĐ]+)?"
+)
+
+
+def _strip_citation_references(text: str) -> str:
+    return _CITATION_REF_RE.sub("", text)
+
 
 @dataclass
 class GeneratedSection:
@@ -118,6 +141,8 @@ def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]
     flags: list[ComplianceFlag] = []
     for m in _NUMBER_RE.finditer(generated_text):
         raw = m.group()
+        if _OUTLINE_MARKER_RE.match(raw):  # "1.1", "2.3"... số thứ tự mục, không phải số liệu
+            continue
         normalized = re.sub(r"[.,]", "", raw)
         if len(normalized) < 2:  # bỏ qua số đơn lẻ (số thứ tự mục, v.v.)
             continue
@@ -161,11 +186,14 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         if section_id not in SECTION_DEFINITIONS:
             raise ValueError(f"Section '{section_id}' nằm ngoài phạm vi sinh của M5 (chỉ chuong_III/V).")
         result = self.run(section_id, fields)
-        # Chỉ verify phần văn bản KHÔNG PHẢI trích dẫn nguyên văn từ corpus — số liệu trong
-        # đoạn trích dẫn đã có citation đi kèm (truy vết được nguồn), không phải model tự bịa.
+        # Chỉ verify phần văn bản KHÔNG PHẢI trích dẫn — số liệu trong đoạn trích dẫn đã có
+        # citation đi kèm (truy vết được nguồn), không phải model tự bịa. Bản Tier 3 chèn
+        # nguyên văn `c.text` nên xoá bằng string replace; bản Tier 1 (Claude) diễn giải/tóm
+        # tắt nên còn cần xoá thêm các cụm trích dẫn nội tuyến (`_strip_citation_references`).
         narrative_only = result.text
         for c in result.citations:
             narrative_only = narrative_only.replace(c.text, "")
+        narrative_only = _strip_citation_references(narrative_only)
         result.flags = verify_numeric_consistency(narrative_only, fields)
         return result
 

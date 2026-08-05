@@ -364,10 +364,37 @@ sách dùng judge khác họ (GPT-4, Gemini...) trong phạm vi 15 ngày.
   cứ đối chiếu — đo được LLM-only "đoán đúng nhờ kiến thức nền" hay "bịa" nhiều đến đâu so
   với khi có RAG.
 
-**Trạng thái tại thời điểm biên soạn báo cáo:** môi trường phát triển phiên làm việc này
-KHÔNG có `ANTHROPIC_API_KEY` (chưa cấu hình billing) — chạy `scripts/run_ablation_table.py`
-cho kết quả Phần A đầy đủ (số liệu thật, xem Mục 12) và Phần B **`"status": "N/A"`** kèm
-thông báo rõ ràng thay vì giả lập điểm số. Code đã sẵn sàng chạy đầy đủ Phần B ngay khi nhóm
-cấu hình API key thật — chỉ cần `python scripts/run_ablation_table.py --n-questions 10`
-(giảm `--n-questions` để kiểm soát chi phí API, mỗi câu tốn 4 lượt gọi Claude: sinh no-RAG +
-sinh RAG + chấm no-RAG + chấm RAG).
+**Kết quả chạy thật** (`python scripts/run_ablation_table.py --n-questions 8`, sau khi có
+`ANTHROPIC_API_KEY`; xem `reports/ablation_table.json`):
+
+| Điều kiện | Faithfulness (TB) | Completeness (TB) | Số câu chấm được |
+|---|---|---|---|
+| LLM-only (không RAG) | 0.41 | 0.44 | 6/8 |
+| **RAG (có trích dẫn thật)** | **0.94** | **0.87** | 8/8 |
+
+**Nhận xét:** RAG cải thiện faithfulness gấp hơn 2 lần (0.41 → 0.94) và completeness gần
+gấp đôi (0.44 → 0.87) so với gọi thẳng LLM không có ngữ cảnh — đúng như giả thuyết chính
+của toàn bộ hướng redesign: LLM có sẵn (Claude), dù có kiến thức nền rộng, KHÔNG đủ tin cậy
+để trả lời câu hỏi pháp lý cụ thể (dễ nhầm lẫn giữa các quy định cũ/mới, bịa chi tiết nghe
+hợp lý) nếu không có trích dẫn văn bản thật làm căn cứ — minh chứng định lượng cho đúng lỗi
+tôi tự phát hiện ở Mục 10 khi ban đầu suýt dùng nhầm Nghị định 24/2024 đã hết hiệu lực.
+
+**Vấn đề kỹ thuật phát hiện khi chạy live (đã sửa, xem `generation/claude_client.py`):**
+1. Model `claude-sonnet-5` từ chối tham số `temperature` (lỗi 400) — sửa bằng cách không
+   gửi tham số này nếu không cần override tường minh.
+2. `claude-sonnet-5` bật **extended thinking** mặc định — thinking token tính vào
+   `max_tokens`, có lúc tiêu hết ngân sách trước khi sinh ra text (response chỉ có block
+   `thinking`, lỗi "không có nội dung text" khó hiểu nếu không biết nguyên nhân) — sửa bằng
+   cách tắt tường minh (`thinking={"type": "disabled"}`) cho các tác vụ RAG-grounded này
+   (không cần suy luận nhiều bước lộ ra ngoài).
+3. `verify_numeric_consistency` (bộ dò số liệu R4 trong `models/generator.py`) được thiết
+   kế cho luồng template-filling cũ (chèn nguyên văn trích dẫn nên xoá bằng string replace)
+   — khi Claude (Tier 1) diễn giải và trích dẫn nội tuyến kiểu "(Điều 26 Nghị định
+   214/2025/NĐ-CP)", các số Điều/Khoản/năm ban hành bị gắn cờ R4 oan uổng (quan sát thực tế:
+   20+ cờ giả mỗi mục, hầu hết là số trích dẫn). Sửa bằng cách loại các cụm trích dẫn nội
+   tuyến trước khi kiểm tra số liệu, cùng với việc bỏ qua số thứ tự mục kiểu "1.1"/"2.3".
+4. `max_tokens=1536` (mục soạn) và `512` (LLM-only/RAG generation trong ablation) từng cắt
+   cụt câu trả lời giữa chừng ở các mục dài — tăng lên `4096`/`1024` tương ứng.
+
+Các vấn đề này chỉ lộ ra khi chạy THẬT với API key có credit — một minh chứng cụ thể cho
+giá trị của việc kiểm thử end-to-end thay vì chỉ tin vào test đã mock.

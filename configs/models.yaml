@@ -23,7 +23,9 @@ retriever:
 
 generator:
   claude_model: "claude-sonnet-5"
-  max_tokens: 1536
+  # Phát hiện thực tế khi chạy live: 1536 không đủ cho mục dài (bảng điểm kỹ thuật,
+  # nhiều điều khoản trích dẫn) — bị cắt cụt giữa câu, có nguy cơ mất nội dung/trích dẫn.
+  max_tokens: 4096
   sections_supported: ["chuong_III", "chuong_V"]
 
 compliance:

@@ -64,7 +64,12 @@ def judge_faithfulness(
     """Gọi Claude API làm giám khảo. Raise `ClaudeUnavailableError` nếu không gọi được (thiếu
     API key...) — tầng gọi (script eval) tự quyết định báo "N/A" thay vì giả lập điểm số."""
     prompt = _build_judge_prompt(question, citations, generated_text)
-    raw = call_claude(system=_JUDGE_SYSTEM_PROMPT, user_prompt=prompt, model=model, max_tokens=512, temperature=0.0)
+    # Không truyền temperature — model mới (claude-sonnet-5) từ chối tham số này (xem
+    # docstring claude_client.call_claude). Giám khảo vẫn đủ ổn định nhờ rubric + yêu cầu
+    # JSON schema cố định trong system prompt, không cần ép temperature=0.
+    # max_tokens=1024 (không phải 512): phát hiện thực tế khi chạy live — 512 đôi khi cắt
+    # cụt JSON giữa danh sách `unsupported_claims` dài, khiến response không parse được.
+    raw = call_claude(system=_JUDGE_SYSTEM_PROMPT, user_prompt=prompt, model=model, max_tokens=1024)
 
     try:
         parsed = json.loads(raw)

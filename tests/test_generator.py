@@ -3,7 +3,7 @@ import json
 import pytest
 
 from autotender.models import generator as generator_module
-from autotender.models.generator import GeneratorModule, verify_numeric_consistency
+from autotender.models.generator import GeneratorModule, _strip_citation_references, verify_numeric_consistency
 from autotender.schemas import ExtractedField
 
 
@@ -50,6 +50,79 @@ def test_verify_numeric_consistency_no_flag_when_numbers_match():
     text = "Giá gói thầu là 5.200.000.000 đồng, thời gian thực hiện 90 ngày."
     flags = verify_numeric_consistency(text, fields)
     assert flags == []
+
+
+def test_verify_numeric_consistency_ignores_outline_markers():
+    """Phát hiện thực tế khi chạy live: Claude hay đánh số mục kiểu "1.1", "2.3" — đây là
+    số thứ tự cấu trúc, không phải số liệu nghiệp vụ, không nên bị gắn cờ R4."""
+    fields = _fields()
+    text = "1.1. Nội dung mục con thứ nhất.\n2.3. Nội dung mục con khác."
+    flags = verify_numeric_consistency(text, fields)
+    assert flags == []
+
+
+def test_strip_citation_references_removes_dieu_khoan_and_law_numbers():
+    text = (
+        "Theo Điều 26 Khoản 4 Nghị định 214/2025/NĐ-CP và Điều 44 Luật Đấu thầu số "
+        "22/2023/QH15, yêu cầu doanh thu tối thiểu 1,5 lần giá gói thầu."
+    )
+    stripped = _strip_citation_references(text)
+    assert "214" not in stripped
+    assert "2025" not in stripped
+    assert "26" not in stripped
+    assert "44" not in stripped
+    assert "22" not in stripped
+    assert "2023" not in stripped
+    # số liệu nghiệp vụ (không phải trích dẫn) phải được giữ nguyên để verifier vẫn xét
+    assert "1,5" in stripped
+
+
+def test_generate_section_does_not_flag_citation_numbers_as_r4(monkeypatch, tmp_path):
+    """Bug thật phát hiện khi chạy live: Claude (Tier 1) trích dẫn nội tuyến kiểu
+    "(Điều 26 Nghị định 214/2025/NĐ-CP)" — không copy verbatim `c.text` nên bước xoá cũ
+    (string replace theo `c.text`) không tác dụng, khiến số Điều/Nghị định bị gắn cờ R4
+    oan uổng dù không phải số liệu gói thầu."""
+    faiss = pytest.importorskip("faiss")
+    from autotender.rag.hybrid_retriever import HybridLegalRetriever
+    from autotender.rag.index import FaissChunkIndex
+
+    chunk = {
+        "chunk_id": "c1", "text": "Yêu cầu về nhãn hiệu, xuất xứ hàng hóa phải nêu tương đương.",
+        "source_doc": "Điều 44, Khoản 3", "law_id": "x", "dieu_so": 44,
+    }
+    with open(tmp_path / "chunks.jsonl", "w", encoding="utf-8") as f:
+        f.write(json.dumps(chunk, ensure_ascii=False) + "\n")
+    model_dir = tmp_path / "vi_bi_encoder"
+    model_dir.mkdir()
+    index = FaissChunkIndex(dim=4)
+    index.add([[1.0, 0.0, 0.0, 0.0]])
+    index.save(model_dir / "index.faiss")
+    (model_dir / "dim.txt").write_text("4", encoding="utf-8")
+
+    retriever = HybridLegalRetriever(model_key="vi_bi_encoder", index_dir=tmp_path)
+
+    class _FakeEncoder:
+        def encode(self, texts, show_progress_bar=False):
+            import numpy as np
+
+            return np.asarray([[1.0, 0.0, 0.0, 0.0] for _ in texts], dtype="float32")
+
+    retriever._encoder = _FakeEncoder()
+    monkeypatch.setattr(
+        "autotender.rag.hybrid_retriever.rerank_with_cross_encoder",
+        lambda model_name, query, candidates, top_k: [(0, 1.0)],
+    )
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(
+        generator_module, "call_claude",
+        lambda **kwargs: "Yêu cầu nêu rõ tương đương (Điều 26 Khoản 4 Nghị định 214/2025/NĐ-CP).",
+    )
+
+    module = GeneratorModule(retriever=retriever)
+    result = module.generate_section("chuong_III.muc_4", _fields())
+
+    assert module.active_tier == 1
+    assert result.flags == []  # không còn cờ R4 giả do số trích dẫn
 
 
 def test_generate_section_uses_claude_when_available(monkeypatch, tmp_path):
