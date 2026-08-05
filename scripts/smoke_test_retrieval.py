@@ -40,6 +40,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=list(EMBEDDING_MODELS), default=DEFAULT_EMBEDDING_MODEL_KEY)
     parser.add_argument("--top-k", type=int, default=3)
+    parser.add_argument("--skip-rerank", action="store_true", help="Bỏ qua bước rerank (nhanh hơn, chỉ so sánh dense/sparse/hybrid)")
     args = parser.parse_args()
 
     retriever = HybridLegalRetriever(model_key=args.model)
@@ -54,6 +55,9 @@ def main() -> None:
         print_results("dense", dense)
         print_results("sparse (BM25)", sparse)
         print_results("hybrid (RRF)", hybrid)
+        if not args.skip_rerank:
+            reranked = retriever.retrieve_reranked(query, top_k=args.top_k, candidate_k=50)
+            print_results("hybrid + rerank (cross-encoder)", reranked)
         print()
 
 

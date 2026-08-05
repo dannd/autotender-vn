@@ -15,8 +15,9 @@ from pathlib import Path
 
 from autotender.config import resolve_path
 from autotender.rag.bm25 import BM25Index, build_bm25_index
-from autotender.rag.embedding_models import DEFAULT_EMBEDDING_MODEL_KEY, EMBEDDING_MODELS
+from autotender.rag.embedding_models import CROSS_ENCODER_MODEL, DEFAULT_EMBEDDING_MODEL_KEY, EMBEDDING_MODELS
 from autotender.rag.index import FaissChunkIndex
+from autotender.rag.rerank import rerank_with_cross_encoder
 from autotender.schemas import RetrievedChunk
 
 RRF_K = 60
@@ -43,6 +44,7 @@ class HybridLegalRetriever:
 
         self._bm25_index: BM25Index | None = None
         self._encoder = None  # tải trễ — chỉ cần khi có truy vấn thật
+        self._cross_encoder_name = CROSS_ENCODER_MODEL
 
     @staticmethod
     def _load_chunk_metadata(path: Path) -> list[dict]:
@@ -86,9 +88,7 @@ class HybridLegalRetriever:
     def retrieve_sparse(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
         return self._get_bm25().search(query, min(top_k, len(self._chunks)))
 
-    def retrieve(self, query: str, top_k: int = 10, candidate_k: int = 50) -> list[RetrievedChunk]:
-        """Hợp nhất dense + sparse bằng RRF. `candidate_k`: số ứng viên lấy từ MỖI hệ thống
-        trước khi hợp nhất (mặc định 50, theo kế hoạch "top-50" trước rerank)."""
+    def _fuse_rrf(self, query: str, candidate_k: int) -> list[tuple[int, float]]:
         dense = self.retrieve_dense(query, candidate_k)
         sparse = self.retrieve_sparse(query, candidate_k)
 
@@ -97,6 +97,23 @@ class HybridLegalRetriever:
             rrf_scores[idx] = rrf_scores.get(idx, 0.0) + 1.0 / (RRF_K + rank + 1)
         for rank, (idx, _score) in enumerate(sparse):
             rrf_scores[idx] = rrf_scores.get(idx, 0.0) + 1.0 / (RRF_K + rank + 1)
+        return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
 
-        ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
+    def retrieve(self, query: str, top_k: int = 10, candidate_k: int = 50) -> list[RetrievedChunk]:
+        """Hợp nhất dense + sparse bằng RRF. `candidate_k`: số ứng viên lấy từ MỖI hệ thống
+        trước khi hợp nhất (mặc định 50, theo kế hoạch "top-50" trước rerank)."""
+        ranked = self._fuse_rrf(query, candidate_k)[:top_k]
         return [self._to_retrieved_chunk(idx, score) for idx, score in ranked]
+
+    def retrieve_reranked(self, query: str, top_k: int = 5, candidate_k: int = 50) -> list[RetrievedChunk]:
+        """Hybrid RRF (top `candidate_k`) rồi rerank bằng cross-encoder xuống `top_k`
+        (mặc định top-50 -> top-5, đúng theo kế hoạch). Chậm hơn `retrieve` nhiều lần
+        (cross-encoder chạy N lần forward pass, N = candidate_k) — chỉ dùng khi cần độ
+        chính xác cao nhất (Mức 2 soạn mục HSMT), không dùng cho việc so sánh tốc độ."""
+        candidates = self._fuse_rrf(query, candidate_k)
+        if not candidates:
+            return []
+
+        texts = [self._chunks[idx]["text"] for idx, _ in candidates]
+        reranked = rerank_with_cross_encoder(self._cross_encoder_name, query, texts, top_k)
+        return [self._to_retrieved_chunk(candidates[i][0], score) for i, score in reranked]

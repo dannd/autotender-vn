@@ -74,3 +74,29 @@ def test_retrieve_fuses_dense_and_sparse_via_rrf(index_dir):
     assert len(results) == 3
     assert results[0].chunk_id == "c1"
     assert all(r.law_id == "x" for r in results)
+
+
+def test_retrieve_reranked_uses_cross_encoder_order(monkeypatch, index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=index_dir)
+    retriever._encoder = _FakeEncoder()
+
+    # Cross-encoder giả lập: đảo ngược thứ hạng RRF (đưa ứng viên cuối lên đầu) để xác
+    # nhận kết quả thật sự đi qua bước rerank, không chỉ trả nguyên fusion RRF.
+    def _fake_rerank(model_name, query, candidates, top_k):
+        n = len(candidates)
+        ranked = [(n - 1 - i, float(i)) for i in range(n)]
+        return ranked[:top_k]
+
+    monkeypatch.setattr("autotender.rag.hybrid_retriever.rerank_with_cross_encoder", _fake_rerank)
+
+    results = retriever.retrieve_reranked("hồ sơ mời thầu phần mềm", top_k=3, candidate_k=3)
+
+    assert len(results) == 3
+    assert all(r.law_id == "x" for r in results)
+
+
+def test_retrieve_reranked_returns_empty_when_no_candidates(index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=index_dir)
+    retriever._fuse_rrf = lambda query, candidate_k: []  # type: ignore[method-assign]
+
+    assert retriever.retrieve_reranked("bất kỳ", top_k=3) == []

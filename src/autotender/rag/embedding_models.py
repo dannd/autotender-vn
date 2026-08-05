@@ -15,3 +15,9 @@ EMBEDDING_MODELS: dict[str, str] = {
 }
 
 DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
+
+# Cross-encoder rerank (Mục "Rerank cross-encoder" — GĐ2-N7). mMARCO là bộ MS MARCO dịch
+# sang 14 ngôn ngữ (gồm tiếng Việt) — cross-encoder train trên đó là lựa chọn hợp lý nhất
+# hiện có cho rerank tiếng Việt (không có cross-encoder train riêng cho tiếng Việt/pháp
+# luật VN sẵn có công khai).
+CROSS_ENCODER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
