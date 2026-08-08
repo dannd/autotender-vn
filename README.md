@@ -2,7 +2,12 @@
 
 Phần mềm hỗ trợ **soạn thảo Hồ sơ mời thầu (E-HSMT) cho gói thầu phần mềm/CNTT** tại
 Việt Nam bằng **RAG + LLM có sẵn (Claude API)** — đồ án cuối môn Deep Learning, bậc
-Thạc sĩ, nhóm 4 người, thực hiện trong 15 ngày.
+Thạc sĩ, thực hiện trong 15 ngày.
+
+**Tác giả:** Nguyễn Đình Đán, Nguyễn Văn Vũ, Triệu Việt Hoa, Hoàng Xuân Sơn, Nguyễn Thái
+Thịnh — Trường Kinh doanh FSB, Đại học FPT. Xem báo cáo đầy đủ tại
+[`docs/AutoTender-VN_Report_IEEE.docx`](docs/AutoTender-VN_Report_IEEE.docx) và slide
+trình bày tại [`docs/AutoTender-VN_Slides.pptx`](docs/AutoTender-VN_Slides.pptx).
 
 > **Lịch sử dự án:** bản đầu là đồ án solo 7 ngày với kiến trúc đa module tự train
 > (NER/Classifier/Generator fine-tune). Đề cương môn học sau đó đổi hướng sang phạm vi
