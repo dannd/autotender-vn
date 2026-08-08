@@ -1,4 +1,9 @@
-from autotender.knowledge.legal_fetch import extract_body, parse_articles, parse_gxd_theme_articles
+from autotender.knowledge.legal_fetch import (
+    extract_body,
+    parse_articles,
+    parse_gxd_theme_articles,
+    parse_luatvietnam_articles,
+)
 
 _FIXTURE_FULL_PAGE = """
 BÁO ĐIỆN TỬ CHÍNH PHỦ
@@ -183,6 +188,63 @@ def test_parse_gxd_theme_articles_raises_when_no_articles_found():
     fixture = '<div class="theme-default-content"><div><p>không có điều nào</p></div></div>'
     try:
         parse_gxd_theme_articles(fixture, law_id="x", law_name="x", source_url="https://x")
+        assert False, "phải raise ValueError"
+    except ValueError:
+        pass
+
+
+def _lvn_mab2(text: str) -> str:
+    return f'<div id="demuc1" class="docitem-11"><div class="mab2"><p>{text}</p></div></div>'
+
+
+_LUATVIETNAM_FIXTURE_PAGE = (
+    "<article>"
+    + _lvn_mab2("Chương I NHỮNG QUY ĐỊNH CHUNG")
+    + _lvn_mab2("Điều 1. Phạm vi điều chỉnh")
+    + _lvn_mab2("1. Nội dung điều 1.")
+    + _lvn_mab2("Điều 2. Giải thích từ ngữ")
+    + _lvn_mab2("Trong Nghị định này, các từ ngữ dưới đây được hiểu như sau:")
+    + _lvn_mab2("1. Một định nghĩa.")
+    + "</article>"
+)
+
+
+def test_parse_luatvietnam_articles_extracts_chuong_and_dieu():
+    articles = parse_luatvietnam_articles(_LUATVIETNAM_FIXTURE_PAGE, law_id="x", law_name="x", source_url="https://x")
+    assert [a.dieu_so for a in articles] == [1, 2]
+    assert articles[0].chuong_so == "I"
+    assert articles[0].chuong_title == "NHỮNG QUY ĐỊNH CHUNG"
+    assert articles[0].text == "1. Nội dung điều 1."
+
+
+def test_parse_luatvietnam_articles_keeps_title_and_intro_sentence_separate():
+    """Điều 2 gộp tiêu đề + câu dẫn trong 2 thẻ <p> khác nhau cùng 1 div.mab2 — tiêu đề
+    không được dính chữ đầu câu dẫn (xem docstring `parse_luatvietnam_articles`)."""
+    articles = parse_luatvietnam_articles(_LUATVIETNAM_FIXTURE_PAGE, law_id="x", law_name="x", source_url="https://x")
+    dieu_2 = next(a for a in articles if a.dieu_so == 2)
+    assert dieu_2.dieu_title == "Giải thích từ ngữ"
+    assert dieu_2.text.startswith("Trong Nghị định này")
+
+
+def test_parse_luatvietnam_articles_drops_article_with_duplicate_heading():
+    fixture = (
+        "<article>"
+        + _lvn_mab2("Điều 1. Bản đầu")
+        + _lvn_mab2("Nội dung bản đầu.")
+        + _lvn_mab2("Điều 1. Bản đầu")
+        + _lvn_mab2("Nội dung bản hai, khác.")
+        + _lvn_mab2("Điều 2. Điều bình thường")
+        + _lvn_mab2("Nội dung điều 2.")
+        + "</article>"
+    )
+    articles = parse_luatvietnam_articles(fixture, law_id="x", law_name="x", source_url="https://x")
+    assert [a.dieu_so for a in articles] == [2]
+
+
+def test_parse_luatvietnam_articles_raises_when_no_articles_found():
+    fixture = "<article>" + _lvn_mab2("không có điều nào ở đây") + "</article>"
+    try:
+        parse_luatvietnam_articles(fixture, law_id="x", law_name="x", source_url="https://x")
         assert False, "phải raise ValueError"
     except ValueError:
         pass

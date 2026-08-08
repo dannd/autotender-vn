@@ -15,6 +15,7 @@ from common import init_page  # noqa: E402
 
 from autotender.config import get_crawler_settings  # noqa: E402
 from autotender.crawler.pipeline import run_crawl  # noqa: E402
+from autotender.utils.vn_text import format_vn_number  # noqa: E402
 
 init_page("1 — Thu thập dữ liệu")
 
@@ -62,7 +63,7 @@ else:
     type_counts = Counter(df["package_type"].dropna())
     s2.metric("Số loại gói thầu", len(type_counts))
     total_value = df["package_value"].dropna().sum()
-    s3.metric("Tổng giá trị (tỷ VND)", f"{total_value / 1e9:,.1f}")
+    s3.metric("Tổng giá trị (tỷ VND)", format_vn_number(total_value / 1e9, decimals=1))
 
     col_a, col_b = st.columns(2)
     with col_a:

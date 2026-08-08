@@ -9,11 +9,12 @@ và để demo end-to-end pipeline khi chưa có kho văn bản KHLCNT thật đ
 from __future__ import annotations
 
 from autotender.schemas import TenderNotice
+from autotender.utils.vn_text import format_vn_number
 
 
 def build_synthetic_khlcnt_text(notice: TenderNotice) -> str:
     """Ghép các trường có cấu trúc của TenderNotice thành đoạn văn bản dạng KHLCNT."""
-    value_str = f"{notice.package_value:,.0f}".replace(",", ".") if notice.package_value else "chưa xác định"
+    value_str = format_vn_number(notice.package_value) if notice.package_value else "chưa xác định"
     lines = [
         f"Tên gói thầu: {notice.package_name}",
         f"Chủ đầu tư: {notice.investor}",

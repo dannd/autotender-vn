@@ -224,6 +224,7 @@ bảo hộ quyền tác giả (Điều 15 Luật Sở hữu trí tuệ VN) nên 
 | Nghị định 214/2025/NĐ-CP (thay NĐ 24/2024/NĐ-CP) | `nd_214_2025_ndcp.jsonl` | 145/146 | dauthau.gxd.vn |
 | Thông tư 01/2024/TT-BKHĐT | `tt_01_2024_bkhdt.jsonl` | 22/~32 (xem Mục 10.3) | dauthau.gxd.vn (HTML) |
 | Thông tư 22/2024/TT-BKHĐT | `tt_22_2024_bkhdt.jsonl` | 26/33 (xem Mục 10.3) | dauthau.gxd.vn (HTML) |
+| Nghị định 45/2026/NĐ-CP (chuyên ngành CNTT) | `nd_45_2026_ndcp.jsonl` | 43/43 (xem Mục 10.4) | luatvietnam.vn (HTML, thay nguồn scan ảnh) |
 
 **Phát hiện quan trọng — NĐ 24/2024/NĐ-CP đã hết hiệu lực:** lần fetch đầu tiên nhắm vào
 Nghị định 24/2024/NĐ-CP (đúng như đề cương liệt kê), nhưng khi đối chiếu nội dung Điều 44
@@ -263,18 +264,27 @@ theo tên văn bản nêu trong đề cương gốc.
    của 2 thông tư (42+23 **mẫu hồ sơ** E-HSMT dạng Word/Excel) vẫn nằm ngoài phạm vi
    corpus RAG (không phù hợp pipeline trích dẫn theo Điều/Khoản), có thể xử lý riêng làm
    template tham khảo cho module sinh (M5) nếu còn thời gian.
-4. **Nghị định 45/2026/NĐ-CP — KHÔNG lấy được, ngoài phạm vi có chủ đích**: bản PDF chính
-   thức duy nhất tìm được (`datafiles.chinhphu.vn/cpp/files/vbpq/2026/01/45-ndcp.signed.pdf`)
-   là **văn bản scan dạng ảnh** (73 trang, mỗi trang 1 ảnh TIFF, `pypdf` trích xuất được 0 ký
-   tự chữ) — không có lớp text. Xử lý OCR cho văn bản scan **nằm ngoài phạm vi đề cương**
-   (Mục "Việc KHÔNG làm"), nên không xử lý văn bản này. Nội dung liên quan (phần mềm nội bộ
-   áp dụng mẫu HSMT mua sắm hàng hoá) chỉ được ghi nhận qua tóm tắt tìm kiếm web, KHÔNG đưa
-   vào corpus RAG dưới dạng trích dẫn — tránh vi phạm nguyên tắc "Không bịa đặt".
+4. **Nghị định 45/2026/NĐ-CP — ĐÃ lấy được qua nguồn thay thế, sau khi nguồn chính thức
+   thất bại**: bản PDF chính thức duy nhất tại `datafiles.chinhphu.vn` (73 trang, mỗi trang
+   1 ảnh TIFF) vẫn là **văn bản scan dạng ảnh**, `pypdf` trích xuất được 0 ký tự chữ — OCR
+   nằm ngoài phạm vi đề cương nên không xử lý bản này. Tìm được bản **transcript dạng text**
+   (server-render, không phải ảnh) của cùng văn bản tại luatvietnam.vn — đã kiểm tra
+   `robots.txt` cho phép (không có disallow riêng cho bot, chỉ chặn vài path tìm kiếm nội
+   bộ không liên quan). Viết parser riêng cho cấu trúc HTML của trang này
+   (`parse_luatvietnam_articles`, `knowledge/legal_fetch.py`) — mỗi đơn vị nội dung nằm
+   trong `div.mab2 > p`, nhận diện Chương/Điều bằng regex trên text (không dựa số thứ tự
+   class CSS, không ổn định giữa các văn bản). Kết quả: **43/43 Điều** trích xuất sạch, đủ
+   Chương I–VI, đã kiểm tra không lặp/thiếu heading. Căn cứ hợp lệ để lưu nguyên văn dù khác
+   nguồn hiển thị: văn bản quy phạm pháp luật không thuộc đối tượng bảo hộ quyền tác giả
+   (Điều 15 Luật Sở hữu trí tuệ VN) — nội dung pháp luật là như nhau bất kể trang nào biên
+   tập lại, chỉ khác cách trình bày HTML.
 
-**Kết luận:** corpus hiện tại gồm cả 4 văn bản (Luật + Nghị định 214/2025 + 2 Thông tư,
-283 Điều thật, 587 chunk sau khi chia theo Khoản — xem `scripts/build_legal_index.py`) đủ
-để xây dựng retrieval + compliance checker cho cả phần lõi (Chương III năng lực-kinh
-nghiệm, nội dung HSMT) lẫn thủ tục đăng tải/nộp thầu qua mạng (đề cương Mức 1-2).
+**Kết luận:** corpus hiện tại gồm cả 5 văn bản (Luật + Nghị định 214/2025 + 2 Thông tư +
+Nghị định 45/2026 chuyên ngành CNTT, 326 Điều thật, 684 chunk sau khi chia theo Khoản —
+xem `scripts/build_legal_index.py`) đủ để xây dựng retrieval + compliance checker cho cả
+phần lõi (Chương III năng lực-kinh nghiệm, nội dung HSMT), thủ tục đăng tải/nộp thầu qua
+mạng (đề cương Mức 1-2), lẫn nội dung chuyên ngành CNTT (Mục 1.5 đề cương — quản lý đầu
+tư, thiết kế, nghiệm thu, bảo hành phần mềm nội bộ) trước đây còn thiếu hoàn toàn.
 
 ---
 
@@ -310,39 +320,44 @@ dụ định tính, không đưa vào corpus RAG dưới dạng trích dẫn có
 
 ## 12. Tập câu hỏi gán tay đánh giá retrieval (`data/eval/retrieval_queries.jsonl`)
 
-**38 câu hỏi** biên soạn thủ công (không sinh tự động), mỗi câu gán nhãn `(law_id, dieu_so)`
+**46 câu hỏi** biên soạn thủ công (không sinh tự động), mỗi câu gán nhãn `(law_id, dieu_so)`
 — Điều đúng phải được truy xuất, dựa trực tiếp trên tiêu đề Điều thật trong corpus (Mục 10)
 để đảm bảo nhãn đúng. Chỉ chọn các Điều có tiêu đề KHÔNG trùng lặp trong cùng văn bản (một số
 Điều của Nghị định 214/2025 dùng lại tiêu đề "Lập hồ sơ mời thầu"/"Quy trình chi tiết" cho
 từng loại gói thầu khác nhau — tránh dùng làm nhãn vàng vì nhiều đáp án đều "đúng", gây nhiễu
 kết quả đo). Phủ đa dạng chủ đề: nguyên tắc chung, hình thức lựa chọn nhà thầu, nội dung/thời
-gian HSMT, phương pháp đánh giá, hợp đồng, ưu đãi, xử lý vi phạm.
+gian HSMT, phương pháp đánh giá, hợp đồng, ưu đãi, xử lý vi phạm, và 8 câu bổ sung nhắm riêng
+vào nội dung Nghị định 45/2026/NĐ-CP (thử nghiệm sản phẩm, báo cáo kinh tế-kỹ thuật, mô tả
+yêu cầu kỹ thuật phần mềm nội bộ, bảo hành, nghiệm thu...) sau khi văn bản này được đưa vào
+corpus (Mục 10.4) — đảm bảo phần mở rộng corpus thật sự được đánh giá, không chỉ nằm im.
 
 Đây là bước thay thế đúng nghĩa cho proxy `bm25_proxy_recall_at_5` của bản cũ (Mục 5) —
 `src/autotender/eval/retrieval_eval.py` cài đặt Recall@k, MRR, nDCG@k (`k ∈ {1,3,5,10}`),
 tính trên "Điều đúng có nằm trong top-k hay không" (một Điều có thể bị chunk thành nhiều
 mảnh theo Khoản — tính đúng nếu BẤT KỲ mảnh nào thuộc đúng Điều xuất hiện trong top-k).
 
-**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, sau khi bổ sung 2
-Thông tư — corpus 283 Điều/587 chunk, xem `reports/retrieval_metrics.json`):
+**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, sau khi bổ sung
+Nghị định 45/2026 — corpus 326 Điều/684 chunk, xem `reports/retrieval_metrics.json`):
 
-| Chế độ | Recall@5 | MRR | nDCG@5 | Thời gian (38 câu) |
+| Chế độ | Recall@5 | MRR | nDCG@5 | Thời gian (46 câu) |
 |---|---|---|---|---|
-| BM25 (sparse) | 0.500 | 0.343 | 0.379 | 1.0s |
-| Dense (bi-encoder) | 0.658 | 0.518 | 0.547 | 15.1s |
-| Hybrid RRF (dense+sparse) | 0.658 | 0.481 | 0.519 | 4.0s |
-| Hybrid RRF + rerank (cross-encoder) | **0.789** | **0.584** | **0.633** | 791.5s |
+| BM25 (sparse) | 0.565 | 0.385 | 0.426 | 0.7s |
+| Dense (bi-encoder) | 0.696 | 0.543 | 0.575 | 12.7s |
+| Hybrid RRF (dense+sparse) | 0.674 | 0.507 | 0.541 | 2.8s |
+| Hybrid RRF + rerank (cross-encoder) | **0.804** | **0.611** | **0.656** | 908.0s |
 
-**Nhận xét:** BM25 đơn lẻ yếu nhất (đúng như kỳ vọng — không hiểu ngữ nghĩa, chỉ khớp từ);
-dense cải thiện rõ; hybrid RRF không đổi Recall@5 so với dense-only ở đây (thêm 76 chunk
-từ 2 Thông tư mới không cạnh tranh với các Điều Luật/Nghị định đã đúng target của 38 câu
-gán tay — dự kiến, vì bộ câu hỏi này không nhắm riêng vào nội dung 2 Thông tư) nhưng
-MRR/nDCG@5 giảm nhẹ so với dense-only (BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn
-giữ nó trong top-5); rerank cross-encoder cải thiện mạnh nhất trên mọi chỉ số — đúng với
-quan sát định tính ở `scripts/smoke_test_retrieval.py` — nhưng **chi phí thời gian rất
-cao** (~792s cho 38 câu × 50 ứng viên trên corpus lớn hơn, ~20,8s/câu) — cần cân nhắc giữa
-chất lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn
-mục HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
+**Nhận xét:** BM25 đơn lẻ vẫn yếu nhất (đúng như kỳ vọng — không hiểu ngữ nghĩa, chỉ khớp
+từ) nhưng cải thiện rõ so với lần đo trước (0.500→0.565) — 8 câu hỏi mới nhắm vào Nghị định
+45/2026 dùng nhiều từ khoá kỹ thuật CNTT xuất hiện gần như nguyên văn trong Điều đúng (vd
+"thử nghiệm sản phẩm", "báo cáo kinh tế - kỹ thuật"), có lợi cho khớp từ; dense và hybrid+
+rerank đều cải thiện đồng đều trên mọi chỉ số so với lần đo 38 câu trước đó (Recall@5 dense
+0.658→0.696, hybrid+rerank 0.789→0.804) — xác nhận việc bổ sung Nghị định 45/2026 vào
+corpus thực sự nâng chất lượng truy hồi đo được, không chỉ tăng số lượng; hybrid RRF vẫn
+thấp hơn dense-only trên MRR/nDCG@5 (BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn giữ
+trong top-5); rerank cross-encoder vẫn cải thiện mạnh nhất trên mọi chỉ số nhưng **chi phí
+thời gian rất cao** (~908s cho 46 câu × 50 ứng viên, ~19,7s/câu) — cần cân nhắc giữa chất
+lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn mục
+HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
 
 ---
 

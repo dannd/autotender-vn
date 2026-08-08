@@ -91,9 +91,10 @@ nhanh hơn nhiều.
 
 ```
 OFFLINE — dựng kho tri thức thật
-  Luật Đấu thầu 22/2023/QH15 (hợp nhất) + Nghị định 214/2025/NĐ-CP
-        │  fetch verbatim (Playwright, KHÔNG dùng WebFetch — xem knowledge/legal_fetch.py)
-        ▼  chunk theo Điều/Khoản (rag/chunker.py) — 511 chunk thật
+  Luật Đấu thầu 22/2023/QH15 (hợp nhất) + Nghị định 214/2025/NĐ-CP + Nghị định 45/2026/NĐ-CP
+  + Thông tư 01/2024 & 22/2024/TT-BKHĐT
+        │  fetch verbatim (Playwright/httpx, KHÔNG dùng WebFetch — xem knowledge/legal_fetch.py)
+        ▼  chunk theo Điều/Khoản (rag/chunker.py) — 684 chunk thật
         ▼  embed bằng 2 model (rag/embedding_models.py) — so sánh không gian biểu diễn
         ▼  index: FAISS (dense) + BM25 (sparse) — rag/hybrid_retriever.py
 
@@ -162,19 +163,19 @@ redesign) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) (kiến trúc/kết qu�
 
 ## Kết quả đánh giá (bản redesign)
 
-Retrieval (38 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
+Retrieval (46 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
 `docs/DATA_CARD.md` Mục 12):
 
 | Chế độ | Recall@5 | MRR | nDCG@5 |
 |---|---|---|---|
-| BM25 (sparse) | 0.500 | 0.343 | 0.379 |
-| Dense (vi_bi_encoder) | 0.658 | 0.518 | 0.547 |
-| Hybrid RRF | 0.658 | 0.481 | 0.519 |
-| **Hybrid RRF + rerank** | **0.789** | **0.584** | **0.633** |
+| BM25 (sparse) | 0.565 | 0.385 | 0.426 |
+| Dense (vi_bi_encoder) | 0.696 | 0.543 | 0.575 |
+| Hybrid RRF | 0.674 | 0.507 | 0.541 |
+| **Hybrid RRF + rerank** | **0.804** | **0.611** | **0.656** |
 
 So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`): model tiếng
 Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt hơn model đa
-ngôn ngữ (`multilingual_minilm`, 384d) — 0.145 so với 0.138 — dù similarity tuyệt đối
+ngôn ngữ (`multilingual_minilm`, 384d) — 0.160 so với 0.148 — dù similarity tuyệt đối
 thấp hơn; khớp với kết quả Recall@k đo được ở trên.
 
 Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`,
@@ -191,12 +192,11 @@ khi chạy live (temperature/extended thinking/số trích dẫn bị gắn cờ
   `docs/DATA_CARD.md` Mục 10.3) qua parser HTML riêng viết để xử lý lỗi heading lặp/thiếu
   phía nguồn; các mẫu biểu Word/Excel đi kèm 2 thông tư vẫn nằm ngoài phạm vi corpus RAG
   (không phù hợp pipeline trích dẫn theo Điều/Khoản).
-- **Nghị định 45/2026/NĐ-CP** — chỉ có bản scan ảnh (không có lớp text), OCR nằm ngoài
-  phạm vi đề cương nên không xử lý — Mục 10.4.
+- **Nghị định 45/2026/NĐ-CP** — bản chính thức chỉ có scan ảnh (OCR nằm ngoài phạm vi đề
+  cương); đã lấy được 43/43 Điều qua bản transcript text ở nguồn thay thế (luatvietnam.vn)
+  — xem Mục 10.4.
 - **Không tải được HSMT phần mềm thật đã duyệt** — xác nhận đúng rủi ro đã dự đoán:
   cần đăng nhập + Windows-only Client Agent trên hệ thống chính thức — Mục 11.
-- **Faithfulness/ablation LLM-only vs RAG chưa có số liệu thật** — cần `ANTHROPIC_API_KEY`
-  (xem trên).
 - Nội dung Phase 1 cũ (`docs/DATA_CARD.md` Mục 1-9, `docs/MODEL_CARD.md` phần đầu) vẫn
   giữ nguyên giới hạn đã ghi khi đó (chưa có checkpoint Tier 1 thật cho NER/Classifier...).
 

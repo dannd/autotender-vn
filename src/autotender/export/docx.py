@@ -54,7 +54,7 @@ def export_docx(doc: HSMTDocument, store: HitlStore, output_path: str | Path) ->
 
     approved_count, total_count = doc.approval_progress
     if approved_count < total_count:
-        h = document.add_heading("⚠️ CẢNH BÁO: TÀI LIỆU CÒN MỤC CHƯA PHÊ DUYỆT", level=1)
+        document.add_heading("⚠️ CẢNH BÁO: TÀI LIỆU CÒN MỤC CHƯA PHÊ DUYỆT", level=1)
         document.add_paragraph(f"{approved_count}/{total_count} mục đã phê duyệt.")
         for s in doc.sections:
             if s.status != "approved":

@@ -85,7 +85,6 @@ def _export_pdf_reportlab(doc: HSMTDocument, approval_log: list[dict], output_pa
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (
-        NextPageTemplate,
         PageBreak,
         Paragraph,
         SimpleDocTemplate,

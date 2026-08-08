@@ -57,9 +57,9 @@ redesign RAG+LLM (nhóm 4 người, 15 ngày) — code, test, config và noteboo
   (đề cương mới), phân loại loại gói thầu không còn ảnh hưởng đến luồng sinh HSMT.
 - **M4 — Retrieval (BM25-only):** BM25 proxy Recall@5 = 1.0/8 truy vấn mẫu trên corpus minh
   hoạ 13 chunk (`data/samples/corpus/`, xem DATA_CARD.md mục 5 về giới hạn phương pháp
-  proxy). Thay thế bởi `rag/hybrid_retriever.py` (dense+BM25 hybrid, corpus luật thật 283
-  Điều/587 chunk) — xem `docs/DATA_CARD.md` mục 12 cho số liệu Recall@k/MRR/nDCG@k thật
-  trên tập 38 câu hỏi gán tay.
+  proxy). Thay thế bởi `rag/hybrid_retriever.py` (dense+BM25 hybrid, corpus luật thật 326
+  Điều/684 chunk) — xem `docs/DATA_CARD.md` mục 12 cho số liệu Recall@k/MRR/nDCG@k thật
+  trên tập 46 câu hỏi gán tay.
 
 ---
 
@@ -153,24 +153,24 @@ Nghị định 24/2024 đã hết hiệu lực). Bảng ablation LLM-only vs RAG
 
 Theo đúng hướng đề cương mới: "Deep Learning" ở đây thể hiện qua **phân tích/đánh giá** các
 mạng nơ-ron pretrained (embedding, cross-encoder), KHÔNG qua việc tự huấn luyện. Chạy
-`scripts/analyze_embeddings.py` trên 587 chunk của kho tri thức thật (`data/samples/legal_corpus/` —
-Luật + Nghị định 214/2025 + 2 Thông tư, xem `docs/DATA_CARD.md` Mục 10), so sánh 2 model
-embedding đã đăng ký (`rag/embedding_models.py`):
+`scripts/analyze_embeddings.py` trên 684 chunk của kho tri thức thật (`data/samples/legal_corpus/` —
+Luật + Nghị định 214/2025 + 2 Thông tư + Nghị định 45/2026, xem `docs/DATA_CARD.md` Mục 10),
+so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`):
 
 | Model | Kiến trúc/dữ liệu train | Chiều | intra-Điều (TB) | inter-Điều (TB) | Độ tách biệt |
 |---|---|---|---|---|---|
-| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4794 | 0.3341 | **0.1453** |
-| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6608 | 0.5228 | 0.1380 |
+| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4838 | 0.3244 | **0.1595** |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6585 | 0.5109 | 0.1477 |
 
 **"Độ tách biệt"** = cosine similarity trung bình giữa các chunk CÙNG một Điều (intra) trừ
 đi similarity trung bình giữa các chunk KHÁC Điều (inter) — không gian biểu diễn "tốt cho
 retrieval" phải có độ tách biệt cao (các đoạn cùng chủ đề pháp lý gần nhau hơn hẳn các đoạn
 khác chủ đề). **Kết quả:** dù model đa ngôn ngữ có similarity tuyệt đối cao hơn hẳn ở cả 2
-nhóm (0.66/0.52 so với 0.48/0.33 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
+nhóm (0.66/0.51 so với 0.48/0.32 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
 nghĩa tuyệt đối), model tiếng Việt chuyên biệt lại có **độ tách biệt tương đối cao hơn**
-(0.1453 > 0.1380) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
+(0.1595 > 0.1477) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
 similarity tuyệt đối thấp hơn. Kết quả này **khớp** với bảng Recall@k/MRR/nDCG đo trực tiếp
-qua truy vấn thật (`docs/DATA_CARD.md` Mục 12, chạy trên `vi_bi_encoder`: Recall@5=0.658
+qua truy vấn thật (`docs/DATA_CARD.md` Mục 12, chạy trên `vi_bi_encoder`: Recall@5=0.696
 dense-only) — cả 2 phép đo (độc lập, một dựa trên cấu trúc không gian embedding, một dựa
 trên truy vấn thật) đều ủng hộ model tiếng Việt chuyên biệt phù hợp hơn cho corpus pháp
 luật tiếng Việt so với model đa ngôn ngữ tổng quát.

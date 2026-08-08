@@ -1,0 +1,22 @@
+[theme]
+# AutoTender-VN — theme "hồ sơ chính thức": mực xanh đậm + giấy ấm + xanh ngọc trầm,
+# gợi cảm giác văn bản hành chính đáng tin cậy thay vì màu mặc định của Streamlit.
+# Giữ font mặc định của Streamlit (Source Sans, đóng gói sẵn cục bộ, không phụ thuộc
+# mạng) — đã kiểm chứng hiển thị đầy đủ dấu tiếng Việt; từng thử đổi sang Google Font
+# "Be Vietnam Pro" qua CDN nhưng bị fallback âm thầm khi môi trường không có mạng ra
+# ngoài lúc server khởi động, nên bỏ để tránh rủi ro tương tự khi demo.
+base = "light"
+primaryColor = "#2B6E62"
+backgroundColor = "#FBFAF6"
+secondaryBackgroundColor = "#F2F0E9"
+textColor = "#17212B"
+linkColor = "#2B6E62"
+borderColor = "#D9D4C5"
+baseRadius = "0.5rem"
+buttonRadius = "0.5rem"
+showWidgetBorder = true
+showSidebarBorder = false
+codeFont = "Consolas, \"SF Mono\", monospace"
+
+[server]
+enableStaticServing = true

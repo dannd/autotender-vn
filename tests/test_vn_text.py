@@ -1,4 +1,10 @@
-from autotender.utils.vn_text import merge_broken_lines, normalize_nfc, split_sentences
+from autotender.utils.vn_text import format_vn_number, merge_broken_lines, normalize_nfc, split_sentences
+
+
+def test_format_vn_number_uses_dot_thousands_and_comma_decimal():
+    assert format_vn_number(8_500_000_000) == "8.500.000.000"
+    assert format_vn_number(1234.5, decimals=1) == "1.234,5"
+    assert format_vn_number(12.3, decimals=1) == "12,3"
 
 
 def test_normalize_nfc_combines_decomposed_diacritics():

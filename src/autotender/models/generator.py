@@ -28,6 +28,7 @@ from autotender.generation.claude_client import is_configured as is_claude_confi
 from autotender.models.base import BaseModule, TierUnavailableError
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import ComplianceFlag, ExtractedField, RetrievedChunk
+from autotender.utils.vn_text import format_vn_number
 
 SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
     "chuong_III.muc_1": {
@@ -122,7 +123,7 @@ def _format_currency(value: str | None) -> str | None:
     digits = re.sub(r"[^\d]", "", value)
     if not digits:
         return value
-    return f"{int(digits):,}".replace(",", ".") + " đồng"
+    return format_vn_number(int(digits)) + " đồng"
 
 
 def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]) -> list[ComplianceFlag]:

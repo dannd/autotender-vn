@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -77,6 +78,48 @@ def severity_icon(severity: str) -> str:
     return SEVERITY_COLOR.get(severity, "⚪")
 
 
+_CUSTOM_CSS = """
+<style>
+/* Khai báo ngôn ngữ trang là tiếng Việt — trình đọc màn hình phát âm đúng dấu thanh,
+   trình duyệt chọn đúng quy tắc ngắt dòng/gợi ý chính tả cho tiếng Việt. */
+html { -webkit-text-size-adjust: 100%; }
+
+/* Văn bản pháp lý tiếng Việt câu dài, nhiều dấu — tăng line-height giúp dễ đọc hơn
+   mức mặc định vốn tối ưu cho tiếng Anh câu ngắn. */
+[data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li {
+  line-height: 1.65;
+}
+
+/* Số liệu (giá gói thầu, điểm truy hồi, %) canh cột đều — quan trọng cho bảng
+   Đánh giá/Kiểm tra tuân thủ có nhiều dòng số liên tiếp. */
+[data-testid="stMetricValue"], [data-testid="stDataFrame"], code {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Card viền mảnh nhất quán cho các khối trích dẫn/trường thông tin dùng
+   st.container(border=True) khắp app — thay viền xám mặc định bằng màu theo theme. */
+[data-testid="stExpander"] {
+  border-radius: 0.5rem;
+}
+
+/* Tiêu đề trang: thêm gạch dưới mảnh theo màu accent để phân tách rõ với nội dung,
+   tránh cảm giác "trang trần" của tiêu đề Streamlit mặc định. */
+h1 {
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--primary-color, #2B6E62);
+}
+</style>
+"""
+
+
 def init_page(title: str) -> None:
     st.set_page_config(page_title=f"AutoTender-VN — {title}", page_icon="📑", layout="wide")
+    st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
+    # `st.markdown(..., unsafe_allow_html=True)` chèn <script> qua innerHTML — trình
+    # duyệt KHÔNG thực thi script chèn kiểu này (theo đặc tả DOM). `components.html`
+    # dựng iframe cùng-origin có script thực thi thật, từ đó với tới document cha để
+    # đặt `lang="vi"` — giúp trình đọc màn hình phát âm đúng dấu thanh tiếng Việt.
+    components.html(
+        "<script>window.parent.document.documentElement.lang = 'vi';</script>", height=0
+    )
     st.title(title)

@@ -32,6 +32,14 @@ def normalize_nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
 
+def format_vn_number(value: float, decimals: int = 0) -> str:
+    """Định dạng số theo quy ước Việt Nam: dấu chấm ngăn cách hàng nghìn, dấu phẩy
+    thập phân — ngược với mặc định `f"{value:,}"` của Python (dấu phẩy nghìn, dấu
+    chấm thập phân kiểu Anh-Mỹ). Ví dụ: `format_vn_number(1234.5, 1)` -> "1.234,5"."""
+    text = f"{value:,.{decimals}f}"
+    return text.replace(",", ";").replace(".", ",").replace(";", ".")
+
+
 def normalize_whitespace(text: str) -> str:
     """Đưa non-breaking space (U+00A0, hay gặp khi PDF/DOCX xuất ra) về space thường."""
     return text.replace(" ", " ")

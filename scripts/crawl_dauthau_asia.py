@@ -16,7 +16,6 @@ Ví dụ: python scripts/crawl_dauthau_asia.py --max-pages 10
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 

@@ -11,14 +11,18 @@ Ví dụ: python scripts/fetch_legal_corpus.py --law luat_22_2023_qh15
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from autotender.config import resolve_path  # noqa: E402
-from autotender.knowledge.legal_fetch import LegalDocSource, fetch_and_parse, fetch_and_parse_gxd  # noqa: E402
+from autotender.knowledge.legal_fetch import (  # noqa: E402
+    LegalDocSource,
+    fetch_and_parse,
+    fetch_and_parse_gxd,
+    fetch_and_parse_luatvietnam,
+)
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 from autotender.utils.logging import get_logger  # noqa: E402
 
@@ -75,6 +79,19 @@ GXD_HTML_SOURCES: dict[str, dict] = {
     },
 }
 
+# Nghị định 45/2026/NĐ-CP — văn bản chuyên ngành CNTT (Mục 1.5 đề cương). Bản chính thức
+# duy nhất tại datafiles.chinhphu.vn là PDF SCAN ẢNH (0 ký tự text, xem DATA_CARD.md), nên
+# dùng bản transcript dạng text tại luatvietnam.vn thay thế — cùng nội dung pháp luật thật,
+# chỉ khác nguồn hiển thị (văn bản QPPL không thuộc đối tượng bảo hộ quyền tác giả, Điều 15
+# Luật SHTT — xem docstring `LegalArticle`). Dùng `fetch_and_parse_luatvietnam` (httpx thuần,
+# không cần Playwright) vì trang server-render sẵn nội dung.
+LUATVIETNAM_SOURCES: dict[str, dict] = {
+    "nd_45_2026_ndcp": {
+        "law_name": "Nghị định 45/2026/NĐ-CP (quản lý đầu tư ứng dụng CNTT dùng vốn ngân sách nhà nước)",
+        "url": "https://luatvietnam.vn/dau-tu/nghi-dinh-45-2026-nd-cp-quan-ly-dau-tu-cong-nghe-thong-tin-tu-ngan-sach-nha-nuoc-425010-d1.html",
+    },
+}
+
 
 def save_articles(law_id: str, articles: list) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -86,7 +103,7 @@ def save_articles(law_id: str, articles: list) -> Path:
 
 
 def main() -> None:
-    all_ids = list(SOURCES) + list(GXD_HTML_SOURCES)
+    all_ids = list(SOURCES) + list(GXD_HTML_SOURCES) + list(LUATVIETNAM_SOURCES)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--law", choices=all_ids, help="Chỉ fetch 1 văn bản")
     parser.add_argument("--all", action="store_true", help="Fetch tất cả văn bản đã đăng ký")
@@ -101,12 +118,15 @@ def main() -> None:
         try:
             if law_id in SOURCES:
                 articles = fetch_and_parse(SOURCES[law_id])
-            else:
+            elif law_id in GXD_HTML_SOURCES:
                 cfg = GXD_HTML_SOURCES[law_id]
                 articles = fetch_and_parse_gxd(
                     cfg["url"], law_id, cfg["law_name"],
                     initial_chuong_so=cfg.get("initial_chuong_so"), initial_chuong_title=cfg.get("initial_chuong_title"),
                 )
+            else:
+                cfg = LUATVIETNAM_SOURCES[law_id]
+                articles = fetch_and_parse_luatvietnam(cfg["url"], law_id, cfg["law_name"])
         except Exception as e:  # noqa: BLE001
             logger.error("Fetch/parse thất bại cho %s: %s", law_id, e)
             continue

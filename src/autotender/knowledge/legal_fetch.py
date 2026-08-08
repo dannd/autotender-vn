@@ -358,6 +358,108 @@ def fetch_and_parse(source: LegalDocSource) -> list[LegalArticle]:
     return articles
 
 
+def fetch_rendered_html_httpx(url: str, timeout_s: float = 20.0) -> str:
+    """Tải HTML thô bằng httpx thuần (không cần Playwright) — dùng cho trang server-render
+    sẵn nội dung (không phải SPA), xác nhận bằng cách so sánh HTML thô với nội dung hiển thị
+    trên trình duyệt trước khi chọn nhánh này thay vì `fetch_rendered_html`."""
+    import httpx
+
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    with httpx.Client(headers=headers, timeout=timeout_s, follow_redirects=True) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.text
+
+
+def parse_luatvietnam_articles(html: str, law_id: str, law_name: str, source_url: str) -> list[LegalArticle]:
+    """Parse cấu trúc HTML riêng của luatvietnam.vn: mỗi đơn vị nội dung (Chương/Mục/Điều/
+    Khoản/điểm) nằm trong `<div id="demucNNN" class="docitem-K">`, văn bản hiển thị thật
+    trong `div.mab2` con (SVG icon/nút "Đang theo dõi" nằm ngoài `.mab2`, không lẫn vào text).
+    Nhận diện loại đơn vị bằng REGEX trên chính nội dung `.mab2` (không dựa vào số `K` của
+    class `docitem-K` vì số này không nhất quán ý nghĩa giữa các văn bản khác nhau trên
+    cùng site) — cùng nguyên tắc parse theo text pattern như `parse_articles`."""
+    from selectolax.parser import HTMLParser
+
+    tree = HTMLParser(html)
+    container = tree.css_first("article") or tree
+    # Lấy theo `<p>` con của `div.mab2`, không lấy nguyên `div.mab2` — một số Điều (vd
+    # Điều giải thích từ ngữ) gộp tiêu đề và câu dẫn vào chung 1 `div.mab2` bằng 2 thẻ
+    # `<p>` riêng; `.text()` trên cả div nối 2 đoạn liền nhau không có khoảng trắng,
+    # làm tiêu đề Điều bị dính chữ đầu câu tiếp theo nếu không tách theo `<p>`.
+    nodes = container.css("div.mab2 > p")
+
+    articles_by_dieu: dict[int, LegalArticle] = {}
+    order: list[int] = []
+    heading_seen_count: dict[int, int] = {}
+    fetched_at = datetime.now(timezone.utc)
+
+    current_chuong_so: str | None = None
+    current_chuong_title: str | None = None
+    current_dieu_so: int | None = None
+    current_dieu_title: str | None = None
+    buffer: list[str] = []
+
+    def flush() -> None:
+        if current_dieu_so is None:
+            return
+        text = "\n".join(buffer).strip()
+        if not text:
+            return
+        heading_seen_count[current_dieu_so] = heading_seen_count.get(current_dieu_so, 0) + 1
+        if current_dieu_so not in articles_by_dieu:
+            order.append(current_dieu_so)
+        articles_by_dieu[current_dieu_so] = LegalArticle(
+            law_id=law_id, law_name=law_name,
+            chuong_so=current_chuong_so, chuong_title=current_chuong_title,
+            dieu_so=current_dieu_so, dieu_title=current_dieu_title or "",
+            text=text, source_url=source_url, fetched_at=fetched_at,
+        )
+
+    for node in nodes:
+        text = node.text().strip()
+        if not text:
+            continue
+        chuong_match = _CHUONG_RE.match(text)
+        if chuong_match:
+            current_chuong_so, current_chuong_title = chuong_match.group(1), chuong_match.group(2).strip()
+            continue
+        dieu_match = _DIEU_RE.match(text)
+        if dieu_match:
+            flush()
+            current_dieu_so, current_dieu_title = int(dieu_match.group(1)), dieu_match.group(2).strip()
+            buffer = []
+            continue
+        if current_dieu_so is not None:
+            buffer.append(text)
+    flush()
+
+    # Cùng nguyên tắc an toàn với parse_gxd_theme_articles: heading Điều xuất hiện > 1 lần
+    # (lỗi biên soạn nguồn/trùng số) thì loại bỏ hẳn thay vì đoán bản nào đúng.
+    duplicated = [n for n, count in heading_seen_count.items() if count > 1]
+    for n in duplicated:
+        if n in articles_by_dieu:
+            logger.warning("Điều %d của %s xuất hiện %d lần trong nguồn — loại bỏ.", n, law_id, heading_seen_count[n])
+            del articles_by_dieu[n]
+            order.remove(n)
+
+    if not order:
+        raise ValueError(f"Không parse được Điều nào từ {law_id} (luatvietnam.vn) — kiểm tra lại cấu trúc trang.")
+    return [articles_by_dieu[n] for n in order]
+
+
+def fetch_and_parse_luatvietnam(url: str, law_id: str, law_name: str) -> list[LegalArticle]:
+    """Fetch + parse cho trang luatvietnam.vn — server-render sẵn (xác nhận qua httpx thô,
+    không cần Playwright), dùng cho văn bản không có bản HTML sạch ở nguồn chính thống
+    (vd Nghị định 45/2026/NĐ-CP chỉ có bản PDF scan ảnh tại datafiles.chinhphu.vn — xem
+    DATA_CARD.md). robots.txt của luatvietnam.vn cho phép crawl path văn bản (chỉ chặn vài
+    endpoint tìm kiếm nội bộ, không có disallow riêng cho bot AI)."""
+    logger.info("Đang fetch %s (%s) [luatvietnam.vn]...", law_name, url)
+    html = fetch_rendered_html_httpx(url)
+    articles = parse_luatvietnam_articles(html, law_id, law_name, url)
+    logger.info("Parse được %d Điều từ %s (luatvietnam.vn).", len(articles), law_name)
+    return articles
+
+
 def fetch_and_parse_gxd(
     url: str, law_id: str, law_name: str,
     initial_chuong_so: str | None = None, initial_chuong_title: str | None = None,

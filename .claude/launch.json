@@ -4,7 +4,16 @@
     {
       "name": "autotender-streamlit",
       "runtimeExecutable": ".venv/Scripts/streamlit.exe",
-      "runtimeArgs": ["run", "app/main.py", "--server.headless", "true"],
+      "runtimeArgs": [
+        "run", "app/main.py", "--server.headless", "true",
+        "--theme.base", "light",
+        "--theme.primaryColor", "#2B6E62",
+        "--theme.backgroundColor", "#FBFAF6",
+        "--theme.secondaryBackgroundColor", "#F2F0E9",
+        "--theme.textColor", "#17212B",
+        "--theme.linkColor", "#2B6E62",
+        "--theme.borderColor", "#D9D4C5"
+      ],
       "port": 8501
     }
   ]
