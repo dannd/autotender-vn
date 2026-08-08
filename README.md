@@ -12,13 +12,15 @@ trình bày tại [`docs/AutoTender-VN_Slides.pptx`](docs/AutoTender-VN_Slides.p
 > **Lịch sử dự án:** bản đầu là đồ án solo 7 ngày với kiến trúc đa module tự train
 > (NER/Classifier/Generator fine-tune). Đề cương môn học sau đó đổi hướng sang phạm vi
 > hẹp hơn (chỉ gói phần mềm/CNTT) và cách tiếp cận RAG+LLM (dùng LLM có sẵn, không bắt
-> buộc tự train) — README này mô tả **trạng thái hiện tại** theo hướng mới. Một phần code
-> Phase 1 cũ (kiến trúc 3-tier tự train, dữ liệu TBMT tổng hợp/thật) vẫn còn trong repo
-> (`models/ner.py`, `crawler/`) với vai trò giảm — trích trường từ KHLCNT upload; phần đã
-> bị thay thế hoàn toàn (M3 Classifier, M4 BM25-only retriever cũ) đã được gỡ khỏi code khi
-> dọn dẹp, chỉ còn số liệu lịch sử trong `docs/MODEL_CARD.md` — xem `docs/DATA_CARD.md` và
-> `docs/MODEL_CARD.md` để phân biệt rõ nội dung nào thuộc bản cũ và nội dung nào thuộc bản
-> redesign.
+> buộc tự train) — README này mô tả **trạng thái hiện tại** theo hướng mới. Khung 3-tier
+> tự train của bản gốc (fine-tuned checkpoint → zero-shot pretrained → rule-based) chưa
+> từng chạy thật (không có GPU/Colab) nên đã được dọn khỏi code: `models/ner.py` (trích
+> trường từ KHLCNT) và `models/compliance.py` (rà soát tuân thủ) nay là code rule-based
+> trực tiếp, không còn khái niệm tier. Chỉ `models/generator.py` (M5) và `models/legal_qa.py`
+> (Mức 1) còn giữ khung 3-tier, nhưng Tier 1 của 2 module này là **Claude API có sẵn** (đường
+> chính, đang chạy thật), không phải checkpoint tự train. Phần đã bị thay thế hoàn toàn (M3
+> Classifier, M4 BM25-only retriever cũ, corpus minh hoạ, notebook train) đã được gỡ khỏi
+> code khi dọn dẹp, chỉ còn số liệu/mô tả lịch sử trong `docs/MODEL_CARD.md`/`docs/DATA_CARD.md`.
 
 Xem đặc tả gốc tại [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — đề cương redesign nằm
 ngoài repo (`de-cuong-hsmt-rag-cntt-phan-mem.pdf`, cung cấp bởi giảng viên).
@@ -47,7 +49,7 @@ pip install -r requirements.txt
 
 ```bash
 python scripts/fetch_legal_corpus.py --all      # tải luật thật (đã có sẵn trong data/samples/legal_corpus/)
-python scripts/build_legal_index.py             # build FAISS cho 2 model embedding (vài phút, cần mạng)
+python scripts/build_legal_index.py --model vi_bi_encoder   # build FAISS cho model mặc định (vài phút, cần mạng)
 ```
 
 **Cấu hình Claude API (tuỳ chọn nhưng khuyến nghị):**
@@ -85,7 +87,7 @@ không cần tài liệu nào) hoặc **Trang 2 — Nạp KHLCNT** rồi **Trang
 pytest
 ```
 
-~95 test. Phần lớn chạy nhanh (rule-based/mock); một số test (`test_orchestrator.py`,
+126 test. Phần lớn chạy nhanh (rule-based/mock); một số test (`test_orchestrator.py`,
 Tier 1 mock trong `test_generator.py`/`test_legal_qa.py`) dùng real embedding model —
 lần chạy đầu tải model từ HuggingFace nên chậm hơn (~2 phút), các lần sau dùng cache
 nhanh hơn nhiều.
@@ -100,7 +102,7 @@ OFFLINE — dựng kho tri thức thật
   + Thông tư 01/2024 & 22/2024/TT-BKHĐT
         │  fetch verbatim (Playwright/httpx, KHÔNG dùng WebFetch — xem knowledge/legal_fetch.py)
         ▼  chunk theo Điều/Khoản (rag/chunker.py) — 684 chunk thật
-        ▼  embed bằng 2 model (rag/embedding_models.py) — so sánh không gian biểu diễn
+        ▼  embed — 3 model đã so sánh (rag/embedding_models.py), mặc định vi_bi_encoder
         ▼  index: FAISS (dense) + BM25 (sparse) — rag/hybrid_retriever.py
 
 ONLINE
@@ -109,34 +111,41 @@ ONLINE
         │                         │
         ▼                         ▼
   Hybrid retrieve (RRF) + rerank cross-encoder (rag/hybrid_retriever.py)
+  (tuỳ chọn, tắt mặc định — đã đo hại/không đủ lợi: query rewrite HyDE-lite,
+  metadata filtering theo law_id — xem docs/DATA_CARD.md Mục 12.2/12.3)
         │
         ▼
-  Claude API sinh câu trả lời/nội dung mục, bắt buộc trích dẫn
-  (generation/claude_client.py) — không có API key thì rơi xuống
-  liệt kê trích dẫn thô/template-filling, KHÔNG BAO GIỜ lỗi
+  Claude API sinh câu trả lời/nội dung mục, bắt buộc trích dẫn, NGỮ CẢNH gửi
+  LLM là TRỌN Điều (không chỉ đoạn Khoản khớp) + cấm tiêu chí hạn chế cạnh
+  tranh NGAY TỪ system prompt (generation/claude_client.py) — không có API
+  key thì rơi xuống liệt kê trích dẫn thô/template-filling, KHÔNG BAO GIỜ lỗi
         │
         ▼
-  Compliance Guard (models/compliance.py): R1-R3 hạn chế cạnh tranh (câu),
-  R5 thiếu thành phần bắt buộc (tài liệu, đối chiếu Điều 26 NĐ 214/2025/NĐ-CP)
+  Compliance Guard (models/compliance.py, rule-based thuần): R1-R3 hạn chế
+  cạnh tranh (câu), R5 thiếu thành phần bắt buộc (tài liệu, đối chiếu Điều 26
+  NĐ 214/2025/NĐ-CP)
         │
         ▼
   HITL duyệt (hitl/store.py) → Export PDF/DOCX (export/*)
 
 ĐÁNH GIÁ (eval/) — xem Trang 8 (Đánh giá) trên GUI
-  retrieval_eval.py: Recall@k/MRR/nDCG trên 46 câu gán tay (data/eval/)
+  retrieval_eval.py: Recall@k/MRR/nDCG trên 46 câu gán tay (data/eval/), có
+    thêm ablation --rewrite/--oracle-filter/--classify-filter
   faithfulness_eval.py: LLM-as-judge (Claude) cho faithfulness/completeness
-  embedding_compare.py: t-SNE/UMAP + độ tách biệt intra/inter-Điều
+  embedding_compare.py: t-SNE/UMAP + độ tách biệt intra/inter-Điều (3 model)
 ```
 
-Chi tiết: [`docs/DATA_CARD.md`](docs/DATA_CARD.md) (nguồn dữ liệu, Mục 10-13 cho phần
+Chi tiết: [`docs/DATA_CARD.md`](docs/DATA_CARD.md) (nguồn dữ liệu, Mục 10-15 cho phần
 redesign) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) (kiến trúc/kết quả từng phần).
 
 ### Nguyên tắc thiết kế bắt buộc
 
-1. **Luôn chạy được (Degraded Mode):** mọi module sinh/hỏi-đáp đều có 3 tầng —
+1. **Luôn chạy được (Degraded Mode):** M5 (Generator) và Mức 1 (Hỏi-đáp) có 3 tầng —
    Tier 1 (Claude API + RAG) → Tier 2 (dự phòng, chưa dùng) → Tier 3 (không LLM, luôn
    thành công). Thiếu `ANTHROPIC_API_KEY` hay lỗi mạng đều tự rơi xuống Tier 3, không
-   làm sập ứng dụng. UI hiển thị badge tier đang chạy.
+   làm sập ứng dụng — UI hiển thị badge tier đang chạy cho 2 module này. M2 (NER) và M6
+   (Compliance) đơn giản hơn: rule-based thuần, không phụ thuộc mạng/API nên luôn chạy
+   trực tiếp, không cần khái niệm tier (xem `docs/MODEL_CARD.md`).
 2. **Không bịa đặt:** câu trả lời/nội dung sinh ra CHỈ dựa trên trích đoạn luật thật đã
    truy xuất (system prompt bắt buộc trích dẫn Điều/Khoản); số liệu gói thầu (giá, thời
    gian, nguồn vốn) chèn bằng slot-filling, verifier `verify_numeric_consistency` gắn cờ
@@ -178,10 +187,12 @@ Retrieval (46 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
 | Hybrid RRF | 0.674 | 0.537 | 0.564 |
 | **Hybrid RRF + rerank** | **0.761** | **0.587** | **0.627** |
 
-So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`): model tiếng
-Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt hơn model đa
-ngôn ngữ (`multilingual_minilm`, 384d) — 0.184 so với 0.167 — dù similarity tuyệt đối
-thấp hơn; khớp với kết quả Recall@k đo được ở trên.
+So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`), 3 model: model
+tiếng Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt nhất — 0.184,
+so với 0.167 của model đa ngôn ngữ (`multilingual_minilm`, 384d) và **0.116 của `bge-m3`**
+(1024d, ngữ cảnh 8192 token — dù giải quyết đúng vấn đề kiến trúc "cắt âm thầm chunk dài",
+độ tách biệt lại THẤP NHẤT trong 3 model, xem lý do ở Mục nâng cấp bên dưới). `vi_bi_encoder`
+vẫn là model mặc định.
 
 **Rà soát kỹ thuật RAG (6 hạng mục: kiến trúc, xử lý embedding, encode/decode vector, LLM
 transformer, chunking, indexing branch)** phát hiện và sửa 3 lỗi thật, chi tiết đầy đủ +
@@ -201,6 +212,25 @@ khi chạy live (temperature/extended thinking/số trích dẫn bị gắn cờ
 `docs/DATA_CARD.md` Mục 13 (đối chiếu thuật ngữ Faithfulness/Context Recall/Context
 Precision với framework RAGAS ở Mục 14).
 
+### 5 nâng cấp đối chiếu với một báo cáo kiến trúc RAG nâng cao tham khảo
+
+Sau khi rà soát một tài liệu tham khảo bên ngoài (phát hiện tài liệu đó trích dẫn sai số
+hiệu Thông tư và số liệu RAGAS không kiểm chứng được — xem `docs/DATA_CARD.md` Mục 15), đã
+triển khai và **đo thật** 5 ý tưởng đáng cân nhắc thay vì áp dụng theo cảm tính:
+
+| Nâng cấp | Trạng thái | Kết quả đo thật |
+|---|---|---|
+| Chặn tiêu chí hạn chế cạnh tranh ngay từ system prompt sinh | ✅ Bật | Phòng thủ 2 lớp cùng M6 (Compliance rà soát sau) |
+| Gửi trọn Điều (parent) thay vì chỉ đoạn Khoản khớp (child) cho LLM | ✅ Bật | Áp dụng cho 487/684 chunk bị cắt theo Khoản |
+| Query rewriting (HyDE-lite, Claude Haiku) trước khi truy hồi | ⚠️ Tắt mặc định | **Hại**: hybrid+rerank nDCG@5 0.627 → 0.511 |
+| Metadata filtering theo `law_id` trước khi truy hồi | ⚠️ Tắt mặc định | Trần lý thuyết (oracle) rất tốt (→0.734) nhưng bộ phân loại thật lại hại (→0.531) |
+| `bge-m3` làm ứng viên embedding thứ 3 | ℹ️ Không đổi mặc định | Giải quyết đúng vấn đề ngữ cảnh dài nhưng độ tách biệt thấp nhất (0.116 vs 0.184) |
+
+2/5 nâng cấp có giá trị rõ ràng và đang bật; 3/5 được implement + đo đầy đủ (kèm test) nhưng
+số liệu thật không ủng hộ bật mặc định — giữ lại làm tuỳ chọn đã kiểm chứng thay vì xoá bỏ.
+Chi tiết số liệu, log, và lý do: `docs/DATA_CARD.md` Mục 12.2 (query rewrite), 12.3 (metadata
+filtering) và `docs/MODEL_CARD.md` (so sánh embedding).
+
 ---
 
 ## Giới hạn đã biết (bản redesign)
@@ -214,17 +244,22 @@ Precision với framework RAGAS ở Mục 14).
   — xem Mục 10.4.
 - **Không tải được HSMT phần mềm thật đã duyệt** — xác nhận đúng rủi ro đã dự đoán:
   cần đăng nhập + Windows-only Client Agent trên hệ thống chính thức — Mục 11.
-- Nội dung Phase 1 cũ (`docs/DATA_CARD.md` Mục 1-9, `docs/MODEL_CARD.md` phần đầu) vẫn
-  giữ nguyên giới hạn đã ghi khi đó (chưa có checkpoint Tier 1 thật cho NER/Classifier...).
+- **Bộ phân loại `law_id` cho metadata filtering chưa đủ chính xác** để khai thác trần lợi
+  ích đã đo được (oracle) — hướng cải thiện thật (few-shot prompt tốt hơn, hoặc mô hình
+  phân loại nhỏ tự huấn luyện) chưa thực hiện trong phạm vi đồ án, xem Mục 12.3 DATA_CARD.md.
+- Nội dung Phase 1 cũ còn lại (`docs/DATA_CARD.md` Mục 1-3, 6-9) vẫn giữ nguyên giới hạn đã
+  ghi khi đó; phần liên quan tới NER/Classifier Tier 1 (checkpoint tự train) đã được dọn khỏi
+  code (M2 nay rule-based thuần, M3 Classifier đã gỡ hoàn toàn) — xem Mục 4-5 DATA_CARD.md.
 
 ---
 
 ## Cấu trúc thư mục
 
 Xem Mục 4 của [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — thư mục mới thêm cho redesign:
-`src/autotender/knowledge/` (fetch luật), `src/autotender/generation/` (Claude client),
-`src/autotender/eval/` (retrieval/faithfulness/embedding eval), `data/samples/legal_corpus/`,
-`data/eval/`, `data/index/` (build artifact, gitignore).
+`src/autotender/knowledge/` (fetch luật), `src/autotender/generation/` (`claude_client.py`,
+`query_rewrite.py`, `law_classifier.py`), `src/autotender/eval/` (retrieval/faithfulness/
+embedding eval), `data/samples/legal_corpus/`, `data/eval/`, `data/index/` (build artifact,
+gitignore).
 
 ## Tài liệu liên quan
 

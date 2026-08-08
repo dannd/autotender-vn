@@ -87,7 +87,7 @@ def build_index_for_model(model_key: str, model_name: str, chunks: list[RawChunk
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", choices=list(EMBEDDING_MODELS), help="Chỉ build 1 model (mặc định: cả 2)")
+    parser.add_argument("--model", choices=list(EMBEDDING_MODELS), help="Chỉ build 1 model (mặc định: build cả 3 model trong EMBEDDING_MODELS)")
     args = parser.parse_args()
 
     chunks = chunk_legal_corpus_dir(LEGAL_CORPUS_DIR)
