@@ -123,7 +123,7 @@ ONLINE
   HITL duyệt (hitl/store.py) → Export PDF/DOCX (export/*)
 
 ĐÁNH GIÁ (eval/) — xem Trang 8 (Đánh giá) trên GUI
-  retrieval_eval.py: Recall@k/MRR/nDCG trên 38 câu gán tay (data/eval/)
+  retrieval_eval.py: Recall@k/MRR/nDCG trên 46 câu gán tay (data/eval/)
   faithfulness_eval.py: LLM-as-judge (Claude) cho faithfulness/completeness
   embedding_compare.py: t-SNE/UMAP + độ tách biệt intra/inter-Điều
 ```
