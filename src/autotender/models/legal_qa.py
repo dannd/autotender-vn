@@ -49,10 +49,10 @@ class LegalQAModule(BaseModule[QAAnswer]):
     def ask(self, question: str) -> QAAnswer:
         return self.run(question)
 
-    def _retrieve_citations(self, question: str) -> list[RetrievedChunk]:
+    def _retrieve_citations(self, question: str, *, allow_rerank: bool = True) -> list[RetrievedChunk]:
         top_k = self._cfg.get("top_k_citations", 5)
         candidate_k = self._cfg.get("candidate_k", 50)
-        if self._cfg.get("use_rerank", True):
+        if allow_rerank and self._cfg.get("use_rerank", True):
             return self._retriever.retrieve_reranked(question, top_k=top_k, candidate_k=candidate_k)
         return self._retriever.retrieve(question, top_k=top_k, candidate_k=candidate_k)
 
@@ -87,7 +87,13 @@ class LegalQAModule(BaseModule[QAAnswer]):
 
     # -- Tier 3: liệt kê trích dẫn không qua LLM, luôn thành công ------------
     def _try_tier3(self, question: str) -> QAAnswer:
-        citations = self._retrieve_citations(question)
+        # Không rerank ở Tier 3: cross-encoder tốn ~7-9s/câu ngay cả khi đã cache model
+        # (đo thực tế — inference thật trên văn bản luật dài, không phải chi phí tải model)
+        # — trái với tinh thần "Tier 3 luôn thành công, không cần phụ thuộc ML nặng" áp
+        # dụng nhất quán cho các module khác (NER/Compliance Tier 3 thuần regex, Generator
+        # Tier 3 thuần template). Hybrid RRF (dense+BM25, không rerank) vẫn đủ tốt cho một
+        # fallback liệt kê trích dẫn thô.
+        citations = self._retrieve_citations(question, allow_rerank=False)
         if citations:
             answer = (
                 "Không thể gọi Claude API (thiếu cấu hình hoặc lỗi kết nối) — dưới đây là các "

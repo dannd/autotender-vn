@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from autotender.config import resolve_path  # noqa: E402
 from autotender.rag.chunker import RawChunk, chunk_legal_corpus_dir  # noqa: E402
-from autotender.rag.embedding_models import EMBEDDING_MODELS  # noqa: E402
+from autotender.rag.embedding_models import EMBEDDING_MODELS, encode_texts  # noqa: E402
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 from autotender.utils.logging import get_logger  # noqa: E402
 
@@ -67,7 +67,11 @@ def build_index_for_model(model_key: str, model_name: str, chunks: list[RawChunk
     texts = [c.text for c in chunks]
     logger.info("Đang embed %d chunk...", len(texts))
     t0 = time.time()
-    embeddings = encoder.encode(texts, show_progress_bar=True, batch_size=32)
+    # `encode_texts` (không phải `encoder.encode` trực tiếp) — xử lý đúng cho chunk dài
+    # hơn `encoder.max_seq_length` bằng sliding-window mean-pooling thay vì bị cắt âm
+    # thầm; xác nhận thực tế 65% chunk kho tri thức vượt 256 token của vi_bi_encoder, xem
+    # docstring `rag/embedding_models.py::encode_texts`.
+    embeddings = encode_texts(encoder, texts, batch_size=32, show_progress_bar=True)
     logger.info("Embed xong sau %.1fs, dim=%d.", time.time() - t0, embeddings.shape[1])
 
     index = FaissChunkIndex(dim=embeddings.shape[1])

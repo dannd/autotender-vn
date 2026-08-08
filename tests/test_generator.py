@@ -103,7 +103,15 @@ def test_generate_section_does_not_flag_citation_numbers_as_r4(monkeypatch, tmp_
     retriever = HybridLegalRetriever(model_key="vi_bi_encoder", index_dir=tmp_path)
 
     class _FakeEncoder:
-        def encode(self, texts, show_progress_bar=False):
+        # Đủ lớn để `encode_texts` luôn đi qua nhánh 1-cửa-sổ với truy vấn ngắn trong test.
+        max_seq_length = 999_999
+
+        class tokenizer:
+            @staticmethod
+            def encode(text, add_special_tokens=False):
+                return text.split()
+
+        def encode(self, texts, show_progress_bar=False, batch_size=32):
             import numpy as np
 
             return np.asarray([[1.0, 0.0, 0.0, 0.0] for _ in texts], dtype="float32")
@@ -147,7 +155,15 @@ def test_generate_section_uses_claude_when_available(monkeypatch, tmp_path):
     retriever = HybridLegalRetriever(model_key="vi_bi_encoder", index_dir=tmp_path)
 
     class _FakeEncoder:
-        def encode(self, texts, show_progress_bar=False):
+        # Đủ lớn để `encode_texts` luôn đi qua nhánh 1-cửa-sổ với truy vấn ngắn trong test.
+        max_seq_length = 999_999
+
+        class tokenizer:
+            @staticmethod
+            def encode(text, add_special_tokens=False):
+                return text.split()
+
+        def encode(self, texts, show_progress_bar=False, batch_size=32):
             import numpy as np
 
             return np.asarray([[1.0, 0.0, 0.0, 0.0] for _ in texts], dtype="float32")

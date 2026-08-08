@@ -24,7 +24,12 @@ from pathlib import Path
 
 from autotender.config import resolve_path
 from autotender.rag.bm25 import BM25Index, build_bm25_index
-from autotender.rag.embedding_models import CROSS_ENCODER_MODEL, DEFAULT_EMBEDDING_MODEL_KEY, EMBEDDING_MODELS
+from autotender.rag.embedding_models import (
+    CROSS_ENCODER_MODEL,
+    DEFAULT_EMBEDDING_MODEL_KEY,
+    EMBEDDING_MODELS,
+    encode_texts,
+)
 from autotender.rag.index import FaissChunkIndex
 from autotender.rag.rerank import rerank_with_cross_encoder
 from autotender.schemas import RetrievedChunk
@@ -114,7 +119,12 @@ class HybridLegalRetriever:
                 "chạy `python scripts/build_legal_index.py` trước."
             )
         encoder = self._get_encoder()
-        query_vec = encoder.encode([query], show_progress_bar=False)[0]
+        # `encode_texts` (không phải `encoder.encode` trực tiếp) — câu hỏi người dùng
+        # thường ngắn nên hiếm khi vượt `max_seq_length`, nhưng dùng chung 1 đường mã hoá
+        # với lúc build index (`scripts/build_legal_index.py`) để nhất quán, tránh trường
+        # hợp câu hỏi dài bị cắt âm thầm còn chunk trong kho tri thức thì không (hoặc
+        # ngược lại) — xem docstring `encode_texts`.
+        query_vec = encode_texts(encoder, [query])[0]
         indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
         return [(i, s) for i, s in zip(indices, scores) if i >= 0]
 
@@ -148,7 +158,12 @@ class HybridLegalRetriever:
         (mặc định top-50 -> top-5, đúng theo kế hoạch). Chậm hơn `retrieve` nhiều lần
         (cross-encoder chạy N lần forward pass, N = candidate_k) — chỉ dùng khi cần độ
         chính xác cao nhất (Mức 2 soạn mục HSMT), không dùng cho việc so sánh tốc độ."""
-        candidates = self._fuse_rrf(query, candidate_k)
+        # `_fuse_rrf` trả về HỢP của cả 2 nhánh (tối đa 2*candidate_k mục khác nhau nếu
+        # dense/sparse không trùng ứng viên nào) — phải cắt về đúng candidate_k trước khi
+        # rerank, nếu không cross-encoder chạy trên nhiều hơn "top-50" đã định (xác nhận
+        # thực tế: 82 ứng viên thay vì 50 trên corpus 684 đoạn), tốn thêm ~60% thời gian
+        # inference một cách không cần thiết.
+        candidates = self._fuse_rrf(query, candidate_k)[:candidate_k]
         if not candidates:
             return []
 

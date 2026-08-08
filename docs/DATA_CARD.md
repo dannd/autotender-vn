@@ -336,28 +336,71 @@ corpus (Mục 10.4) — đảm bảo phần mở rộng corpus thật sự đư�
 tính trên "Điều đúng có nằm trong top-k hay không" (một Điều có thể bị chunk thành nhiều
 mảnh theo Khoản — tính đúng nếu BẤT KỲ mảnh nào thuộc đúng Điều xuất hiện trong top-k).
 
-**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, sau khi bổ sung
-Nghị định 45/2026 — corpus 326 Điều/684 chunk, xem `reports/retrieval_metrics.json`):
+**Kết quả chạy `scripts/run_retrieval_eval.py`** (model `vi_bi_encoder`, corpus 326
+Điều/684 chunk, SAU 3 fix kỹ thuật ở Mục 12.1 bên dưới — xem `reports/retrieval_metrics.json`):
 
 | Chế độ | Recall@5 | MRR | nDCG@5 | Thời gian (46 câu) |
 |---|---|---|---|---|
 | BM25 (sparse) | 0.565 | 0.385 | 0.426 | 0.7s |
-| Dense (bi-encoder) | 0.696 | 0.543 | 0.575 | 12.7s |
-| Hybrid RRF (dense+sparse) | 0.674 | 0.507 | 0.541 | 2.8s |
-| Hybrid RRF + rerank (cross-encoder) | **0.804** | **0.611** | **0.656** | 908.0s |
+| Dense (bi-encoder) | 0.696 | 0.546 | 0.580 | 13.4s |
+| Hybrid RRF (dense+sparse) | 0.674 | 0.537 | 0.564 | 2.9s |
+| Hybrid RRF + rerank (cross-encoder) | **0.761** | **0.587** | **0.627** | 351.2s |
 
 **Nhận xét:** BM25 đơn lẻ vẫn yếu nhất (đúng như kỳ vọng — không hiểu ngữ nghĩa, chỉ khớp
-từ) nhưng cải thiện rõ so với lần đo trước (0.500→0.565) — 8 câu hỏi mới nhắm vào Nghị định
-45/2026 dùng nhiều từ khoá kỹ thuật CNTT xuất hiện gần như nguyên văn trong Điều đúng (vd
-"thử nghiệm sản phẩm", "báo cáo kinh tế - kỹ thuật"), có lợi cho khớp từ; dense và hybrid+
-rerank đều cải thiện đồng đều trên mọi chỉ số so với lần đo 38 câu trước đó (Recall@5 dense
-0.658→0.696, hybrid+rerank 0.789→0.804) — xác nhận việc bổ sung Nghị định 45/2026 vào
-corpus thực sự nâng chất lượng truy hồi đo được, không chỉ tăng số lượng; hybrid RRF vẫn
-thấp hơn dense-only trên MRR/nDCG@5 (BM25 đôi khi đẩy kết quả đúng ra xa top-1 dù vẫn giữ
-trong top-5); rerank cross-encoder vẫn cải thiện mạnh nhất trên mọi chỉ số nhưng **chi phí
-thời gian rất cao** (~908s cho 46 câu × 50 ứng viên, ~19,7s/câu) — cần cân nhắc giữa chất
-lượng và độ trễ khi triển khai thật cho Mức 1 (Hỏi-đáp tương tác) so với Mức 2 (soạn mục
-HSMT, có thể chấp nhận độ trễ cao hơn vì không tương tác theo thời gian thực).
+từ); hybrid RRF vẫn thấp hơn dense-only trên MRR/nDCG@5 (BM25 đôi khi đẩy kết quả đúng ra
+xa top-1 dù vẫn giữ trong top-5); rerank cross-encoder vẫn cải thiện nhiều nhất so với
+không rerank nhưng **chi phí thời gian đã giảm 61%** so với lần đo trước (908s→351s cho 46
+câu) sau khi sửa lỗi tải lại model mỗi lượt gọi (Mục 12.1).
+
+### 12.1. Ba lỗi kỹ thuật tìm thấy khi rà soát kiến trúc RAG (nâng cấp theo yêu cầu)
+
+Rà soát trực tiếp code (không chỉ đọc tài liệu) theo 6 hạng mục kỹ thuật RAG phát hiện 3
+vấn đề thật, đã sửa và đo lại tác động:
+
+1. **`CrossEncoder` bị tải lại mỗi lượt gọi rerank** (`rag/rerank.py`) — đo thực tế: tải
+   model tốn ~6-7s, trong khi inference thật trên 50-80 ứng viên chỉ ~0.2-0.4s với văn bản
+   ngắn (nhưng ~7-9s với văn bản luật dài thật — xem điểm 2). Vì `HybridLegalRetriever`
+   luôn dùng ĐÚNG 1 tên model xuyên suốt vòng đời tiến trình, thêm cache theo `model_name`
+   (cùng nguyên tắc lazy-cache đã áp dụng cho bi-encoder) loại bỏ hoàn toàn chi phí tải lại
+   lặp lại. Tác động đo được: tổng thời gian rerank cho 46 câu giảm từ 908s xuống 391s
+   (giảm 57%) TRƯỚC KHI áp dụng thêm điểm 2 bên dưới.
+2. **`retrieve_reranked` đưa nhiều hơn `candidate_k` ứng viên vào cross-encoder** —
+   `_fuse_rrf` trả về HỢP của dense+sparse (có thể lên tới 2×candidate_k nếu 2 nhánh không
+   trùng ứng viên), nhưng code cũ không cắt về đúng `candidate_k` trước khi rerank. Đo thực
+   tế trên corpus 684 chunk: 82 ứng viên thay vì 50 (tăng 64% khối lượng tính toán không
+   cần thiết). Đã sửa bằng cách cắt `[:candidate_k]` trước khi gọi cross-encoder.
+3. **65% chunk kho tri thức (447/684) bị CẮT ÂM THẦM khi embed** — phát hiện quan trọng
+   nhất: `vietnamese-bi-encoder` có `max_position_embeddings=258` (giới hạn KIẾN TRÚC
+   RoBERTa/PhoBERT nền tảng, không thể tăng qua cấu hình), nhưng chunk trong kho tri thức
+   trung bình dài 310 token, tối đa 568 token — `SentenceTransformer.encode()` mặc định
+   cắt phần vượt quá mà KHÔNG báo lỗi rõ ràng, nghĩa là embedding của phần lớn chunk chỉ
+   phản ánh ĐOẠN ĐẦU, không phải toàn bộ nội dung Điều/Khoản. Đã viết
+   `rag/embedding_models.py::encode_texts` — cắt văn bản dài thành các cửa sổ chồng lấn
+   dựa trên tokenizer thật của model, embed từng cửa sổ, mean-pool + chuẩn hoá L2 lại (kỹ
+   thuật chuẩn cho "long document embedding"), áp dụng nhất quán ở cả lúc build index
+   (`scripts/build_legal_index.py`), phân tích embedding (`scripts/analyze_embeddings.py`)
+   lẫn lúc encode câu truy vấn (`HybridLegalRetriever.retrieve_dense`).
+
+   **Tác động đo được (số liệu KHÔNG bị pha trộn với 2 fix trên, vì chỉ ảnh hưởng bước
+   embed, không ảnh hưởng bước rerank):**
+   - Độ tách biệt không gian embedding (Mục 13 MODEL_CARD.md) tăng rõ rệt: `vi_bi_encoder`
+     0.1595→**0.1836** (+15%), `multilingual_minilm` 0.1477→**0.1674** (+13%) — bằng chứng
+     độc lập (không phụ thuộc tập câu hỏi gán tay) rằng embedding giờ phản ánh đúng hơn nội
+     dung đầy đủ của từng Điều.
+   - Dense-only và hybrid RRF (trước rerank) cải thiện nhẹ MRR/nDCG@5 (dense MRR
+     0.543→0.546, hybrid RRF MRR 0.507→**0.537**, nDCG@5 0.541→**0.564**) trong khi Recall@5
+     giữ nguyên.
+   - **Kết quả SAU rerank lại giảm nhẹ** (Recall@5 0.804→0.761, MRR 0.611→0.587) — trái với
+     kỳ vọng ban đầu. Giả thuyết hợp lý nhất: embedding chính xác hơn làm THAY ĐỔI tập ứng
+     viên top-50 đưa vào cross-encoder cho một số câu hỏi (không còn giống hệt tập ứng viên
+     cũ), và cross-encoder — vốn được đánh giá độc lập, không được tinh chỉnh lại cho tập
+     ứng viên mới — có thể nhạy với thành phần tập ứng viên theo cách không đơn điệu. Với
+     cỡ mẫu chỉ 46 câu, một vài câu đổi kết quả đúng/sai có thể xoay chuyển vài điểm % —
+     chưa đủ để kết luận đây là xu hướng thật hay nhiễu thống kê. **Quyết định giữ fix**:
+     việc cắt âm thầm 65% chunk là lỗi đúng-sai rõ ràng (không phải lựa chọn thiết kế có
+     thể tranh luận), nên vẫn ưu tiên sửa dù số liệu rerank tổng hợp trên tập 46 câu chưa
+     cho thấy lợi ích rõ — cần tập câu hỏi lớn hơn để đánh giá lại tác động lên rerank một
+     cách đáng tin cậy hơn, ghi vào hướng phát triển (Mục "Giới hạn").
 
 ---
 

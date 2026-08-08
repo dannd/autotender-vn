@@ -24,8 +24,18 @@ _VECS = {
 }
 
 
+class _FakeTokenizer:
+    def encode(self, text, add_special_tokens=False):
+        return text.split()
+
+
 class _FakeEncoder:
-    def encode(self, texts, show_progress_bar=False):
+    # Đủ lớn để `encode_texts` luôn đi qua nhánh 1-cửa-sổ (không kích hoạt sliding-window)
+    # với các câu truy vấn ngắn dùng trong test.
+    max_seq_length = 999_999
+    tokenizer = _FakeTokenizer()
+
+    def encode(self, texts, show_progress_bar=False, batch_size=32):
         if texts == ["hồ sơ mời thầu phần mềm"]:
             return np.asarray([[1.0, 0.0, 0.0, 0.0]], dtype="float32")
         return np.asarray([_VECS.get(t, [0, 0, 0, 1]) for t in texts], dtype="float32")
@@ -93,6 +103,27 @@ def test_retrieve_reranked_uses_cross_encoder_order(monkeypatch, index_dir):
 
     assert len(results) == 3
     assert all(r.law_id == "x" for r in results)
+
+
+def test_retrieve_reranked_truncates_fused_candidates_to_candidate_k(monkeypatch, index_dir):
+    """`_fuse_rrf` trả về HỢP của dense+sparse (có thể vượt candidate_k nếu 2 nhánh không
+    trùng ứng viên) — `retrieve_reranked` phải cắt về đúng candidate_k trước khi rerank,
+    không để cross-encoder chạy trên nhiều ứng viên hơn "top-N" đã định (bug tìm thấy khi
+    khảo sát hiệu năng: 82 ứng viên thay vì 50 trên corpus thật)."""
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=index_dir)
+    retriever._encoder = _FakeEncoder()
+
+    seen_candidate_counts = []
+
+    def _fake_rerank(model_name, query, candidates, top_k):
+        seen_candidate_counts.append(len(candidates))
+        return [(i, 0.0) for i in range(min(len(candidates), top_k))]
+
+    monkeypatch.setattr("autotender.rag.hybrid_retriever.rerank_with_cross_encoder", _fake_rerank)
+
+    retriever.retrieve_reranked("hồ sơ mời thầu phần mềm", top_k=2, candidate_k=2)
+
+    assert seen_candidate_counts == [2]
 
 
 def test_retrieve_reranked_returns_empty_when_no_candidates(index_dir):

@@ -32,7 +32,15 @@ def retriever(tmp_path):
     r = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=tmp_path)
 
     class _FakeEncoder:
-        def encode(self, texts, show_progress_bar=False):
+        # Đủ lớn để `encode_texts` luôn đi qua nhánh 1-cửa-sổ với câu hỏi ngắn trong test.
+        max_seq_length = 999_999
+
+        class tokenizer:
+            @staticmethod
+            def encode(text, add_special_tokens=False):
+                return text.split()
+
+        def encode(self, texts, show_progress_bar=False, batch_size=32):
             import numpy as np
 
             return np.asarray([[1.0, 0.0, 0.0, 0.0] for _ in texts], dtype="float32")

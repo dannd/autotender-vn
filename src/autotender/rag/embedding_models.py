@@ -16,6 +16,71 @@ EMBEDDING_MODELS: dict[str, str] = {
 
 DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
 
+
+def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_bar: bool = False):
+    """Embed `texts` bằng `model` (SentenceTransformer), xử lý đúng cho văn bản DÀI HƠN
+    `model.max_seq_length`.
+
+    Mặc định `SentenceTransformer.encode` CẮT ÂM THẦM phần vượt quá giới hạn — embedding
+    khi đó chỉ phản ánh phần ĐẦU văn bản, không báo lỗi rõ ràng. Xác nhận thực tế trên kho
+    tri thức luật: 447/684 chunk (65%) vượt quá 256 token của `vi_bi_encoder`
+    (`max_position_embeddings=258` — giới hạn KIẾN TRÚC của RoBERTa/PhoBERT nền tảng model
+    này, không thể tăng qua cấu hình như có thể làm với model BERT như
+    `multilingual_minilm`, dù checkpoint đó cũng bị cấu hình giới hạn thấp hơn kiến trúc
+    gốc, 128 so với 512 khả dụng).
+
+    Văn bản dài được cắt thành các cửa sổ chồng lấn dựa trên TOKENIZER THẬT của model
+    (chính xác hơn cách xấp xỉ theo số từ ở `rag/chunker.py`, vốn chỉ nhằm mục đích chunk
+    theo ranh giới Khoản chứ không nhằm khớp đúng ngân sách token của một model cụ thể),
+    embed từng cửa sổ trong 1 lượt batch, rồi mean-pool + chuẩn hoá L2 lại — kỹ thuật
+    chuẩn cho "long document embedding" khi văn bản vượt quá cửa sổ ngữ cảnh của encoder.
+    """
+    import numpy as np
+
+    max_tokens = max(model.max_seq_length - 2, 1)  # chừa chỗ cho token đặc biệt [CLS]/[SEP]
+    # `overlap_tokens` PHẢI nhỏ hơn `max_tokens` — nếu không, mỗi bước trượt cửa sổ
+    # (`start = end - overlap_tokens`) có thể ra số ÂM thay vì tăng dần, khiến vòng lặp
+    # không bao giờ đạt điều kiện dừng (`start < len(token_ids)` luôn đúng khi start giảm
+    # dần) — vòng lặp vô hạn, phát hiện qua test với `max_seq_length` giả lập rất nhỏ.
+    overlap_tokens = min(max(16, max_tokens // 8), max_tokens - 1) if max_tokens > 1 else 0
+
+    windows_per_text: list[list[str]] = []
+    for text in texts:
+        # Gọi `tokenizer.encode` trên text GỐC (chưa cắt) để ĐO độ dài — HuggingFace tự in
+        # cảnh báo "Token indices sequence length is longer than..." ngay tại lệnh gọi này
+        # nếu text dài hơn giới hạn model, KỂ CẢ KHI sau đó không đưa thẳng text gốc vào
+        # model (đã xác nhận: từng cửa sổ tách ra bên dưới luôn nằm trong ngân sách token
+        # sau khi decode/encode lại) — cảnh báo này vô hại, chỉ là tác dụng phụ của bước đo.
+        token_ids = model.tokenizer.encode(text, add_special_tokens=False)
+        if len(token_ids) <= max_tokens:
+            windows_per_text.append([text])
+            continue
+        parts: list[str] = []
+        start = 0
+        while start < len(token_ids):
+            end = min(start + max_tokens, len(token_ids))
+            parts.append(model.tokenizer.decode(token_ids[start:end], skip_special_tokens=True))
+            if end == len(token_ids):
+                break
+            start = end - overlap_tokens
+        windows_per_text.append(parts)
+
+    flat_windows = [w for windows in windows_per_text for w in windows]
+    flat_embeddings = np.asarray(model.encode(flat_windows, show_progress_bar=show_progress_bar, batch_size=batch_size))
+
+    results = []
+    offset = 0
+    for windows in windows_per_text:
+        n = len(windows)
+        if n == 1:
+            results.append(flat_embeddings[offset])
+        else:
+            pooled = np.mean(flat_embeddings[offset : offset + n], axis=0)
+            norm = np.linalg.norm(pooled)
+            results.append(pooled / norm if norm > 0 else pooled)
+        offset += n
+    return np.asarray(results)
+
 # Cross-encoder rerank (Mục "Rerank cross-encoder" — GĐ2-N7). mMARCO là bộ MS MARCO dịch
 # sang 14 ngôn ngữ (gồm tiếng Việt) — cross-encoder train trên đó là lựa chọn hợp lý nhất
 # hiện có cho rerank tiếng Việt (không có cross-encoder train riêng cho tiếng Việt/pháp

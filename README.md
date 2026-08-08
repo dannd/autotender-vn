@@ -174,14 +174,25 @@ Retrieval (46 câu hỏi gán tay, `scripts/run_retrieval_eval.py`, chi tiết
 | Chế độ | Recall@5 | MRR | nDCG@5 |
 |---|---|---|---|
 | BM25 (sparse) | 0.565 | 0.385 | 0.426 |
-| Dense (vi_bi_encoder) | 0.696 | 0.543 | 0.575 |
-| Hybrid RRF | 0.674 | 0.507 | 0.541 |
-| **Hybrid RRF + rerank** | **0.804** | **0.611** | **0.656** |
+| Dense (vi_bi_encoder) | 0.696 | 0.546 | 0.580 |
+| Hybrid RRF | 0.674 | 0.537 | 0.564 |
+| **Hybrid RRF + rerank** | **0.761** | **0.587** | **0.627** |
 
 So sánh embedding (`scripts/analyze_embeddings.py`, `docs/MODEL_CARD.md`): model tiếng
 Việt chuyên biệt (`vi_bi_encoder`, 768d) tách biệt intra/inter-Điều tốt hơn model đa
-ngôn ngữ (`multilingual_minilm`, 384d) — 0.160 so với 0.148 — dù similarity tuyệt đối
+ngôn ngữ (`multilingual_minilm`, 384d) — 0.184 so với 0.167 — dù similarity tuyệt đối
 thấp hơn; khớp với kết quả Recall@k đo được ở trên.
+
+**Rà soát kỹ thuật RAG (6 hạng mục: kiến trúc, xử lý embedding, encode/decode vector, LLM
+transformer, chunking, indexing branch)** phát hiện và sửa 3 lỗi thật, chi tiết đầy đủ +
+số liệu trước/sau tại `docs/DATA_CARD.md` Mục 12.1: (1) cross-encoder rerank bị tải lại
+model mỗi lượt gọi thay vì cache — sửa xong giảm 57% thời gian rerank; (2) đưa dư số ứng
+viên vào rerank so với `candidate_k` khai báo; (3) **65% chunk kho tri thức bị cắt âm thầm
+khi embed** vì vượt quá `max_seq_length` của model (giới hạn kiến trúc, không phải cấu
+hình) — đã viết `encode_texts` xử lý bằng sliding-window mean-pooling, xác nhận cải thiện
+độ tách biệt không gian embedding +15%, nhưng ghi nhận trung thực rằng chỉ số SAU rerank
+trên tập 46 câu hỏi lại giảm nhẹ — chưa đủ dữ liệu để kết luận đây là xu hướng thật hay
+nhiễu thống kê, xem thảo luận đầy đủ trong DATA_CARD.md.
 
 Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_table.py`,
 8 câu hỏi): RAG cải thiện faithfulness từ **0.41 → 0.94** và completeness từ **0.44 →

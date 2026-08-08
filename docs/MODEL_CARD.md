@@ -155,25 +155,31 @@ Theo đúng hướng đề cương mới: "Deep Learning" ở đây thể hiện
 mạng nơ-ron pretrained (embedding, cross-encoder), KHÔNG qua việc tự huấn luyện. Chạy
 `scripts/analyze_embeddings.py` trên 684 chunk của kho tri thức thật (`data/samples/legal_corpus/` —
 Luật + Nghị định 214/2025 + 2 Thông tư + Nghị định 45/2026, xem `docs/DATA_CARD.md` Mục 10),
-so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`):
+so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`). Số liệu dưới đây đo SAU khi
+sửa lỗi mã hoá phát hiện khi rà soát kiến trúc RAG (`encode_texts`, xem `docs/DATA_CARD.md`
+Mục 12.1, điểm 3): trước đó `SentenceTransformer.encode()` cắt âm thầm 65% chunk (447/684)
+vượt quá `max_seq_length` của model, khiến embedding chỉ phản ánh đoạn đầu văn bản.
 
 | Model | Kiến trúc/dữ liệu train | Chiều | intra-Điều (TB) | inter-Điều (TB) | Độ tách biệt |
 |---|---|---|---|---|---|
-| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.4838 | 0.3244 | **0.1595** |
-| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.6585 | 0.5109 | 0.1477 |
+| `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.5320 | 0.3483 | **0.1836** |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.7480 | 0.5806 | 0.1674 |
 
 **"Độ tách biệt"** = cosine similarity trung bình giữa các chunk CÙNG một Điều (intra) trừ
 đi similarity trung bình giữa các chunk KHÁC Điều (inter) — không gian biểu diễn "tốt cho
 retrieval" phải có độ tách biệt cao (các đoạn cùng chủ đề pháp lý gần nhau hơn hẳn các đoạn
 khác chủ đề). **Kết quả:** dù model đa ngôn ngữ có similarity tuyệt đối cao hơn hẳn ở cả 2
-nhóm (0.66/0.51 so với 0.48/0.32 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
+nhóm (0.75/0.58 so với 0.53/0.35 — dấu hiệu embedding "co cụm" hơn, kém phân biệt hơn theo
 nghĩa tuyệt đối), model tiếng Việt chuyên biệt lại có **độ tách biệt tương đối cao hơn**
-(0.1595 > 0.1477) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
-similarity tuyệt đối thấp hơn. Kết quả này **khớp** với bảng Recall@k/MRR/nDCG đo trực tiếp
-qua truy vấn thật (`docs/DATA_CARD.md` Mục 12, chạy trên `vi_bi_encoder`: Recall@5=0.696
-dense-only) — cả 2 phép đo (độc lập, một dựa trên cấu trúc không gian embedding, một dựa
-trên truy vấn thật) đều ủng hộ model tiếng Việt chuyên biệt phù hợp hơn cho corpus pháp
-luật tiếng Việt so với model đa ngôn ngữ tổng quát.
+(0.1836 > 0.1674) — tức phân biệt tốt hơn giữa các chủ đề pháp lý khác nhau dù giá trị
+similarity tuyệt đối thấp hơn. So với số liệu đo TRƯỚC khi sửa lỗi cắt âm thầm (0.1595 và
+0.1477 — xem lịch sử git), độ tách biệt của cả 2 model đều tăng rõ rệt (+15% và +13%) sau
+khi embedding phản ánh đúng TOÀN BỘ nội dung chunk thay vì chỉ đoạn đầu — bằng chứng độc lập
+(không phụ thuộc tập câu hỏi gán tay) cho thấy việc sửa lỗi mã hoá thực sự nâng chất lượng
+không gian biểu diễn, không chỉ là thay đổi trung tính. Kết quả này **khớp một phần** với
+bảng Recall@k/MRR/nDCG đo trực tiếp qua truy vấn thật (`docs/DATA_CARD.md` Mục 12: dense-only
+MRR/nDCG@5 cải thiện nhẹ sau fix) — nhưng chỉ số SAU rerank lại giảm nhẹ, một phát hiện nuance
+được thảo luận đầy đủ ở Mục 12.1 DATA_CARD.md thay vì bị bỏ qua.
 
 **Trực quan hoá t-SNE/UMAP** (`reports/figures/embedding_{model}_{tsne,umap}.png`, tô màu
 theo văn bản nguồn — Luật vs Nghị định): cả 2 phép chiếu đều cho thấy một khối trung tâm lớn

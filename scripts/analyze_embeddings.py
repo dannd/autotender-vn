@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from autotender.config import resolve_path  # noqa: E402
 from autotender.eval.embedding_compare import intra_inter_article_similarity, reduce_dimensions  # noqa: E402
 from autotender.rag.chunker import chunk_legal_corpus_dir  # noqa: E402
-from autotender.rag.embedding_models import EMBEDDING_MODELS  # noqa: E402
+from autotender.rag.embedding_models import EMBEDDING_MODELS, encode_texts  # noqa: E402
 from autotender.utils.console import ensure_utf8_console  # noqa: E402
 from autotender.utils.logging import get_logger  # noqa: E402
 
@@ -60,7 +60,10 @@ def analyze_model(model_key: str, model_name: str, chunks) -> dict:
     texts = [c.text for c in chunks]
     logger.info("Đang embed %d chunk...", len(texts))
     t0 = time.time()
-    embeddings = encoder.encode(texts, show_progress_bar=True, batch_size=32)
+    # `encode_texts` — cùng đường mã hoá với `scripts/build_legal_index.py` (sliding-window
+    # mean-pooling cho chunk dài hơn max_seq_length), để số liệu so sánh ở đây phản ánh
+    # ĐÚNG embedding thật sự đang nằm trong FAISS index, không phải bản bị cắt.
+    embeddings = encode_texts(encoder, texts, batch_size=32, show_progress_bar=True)
     logger.info("Embed xong sau %.1fs, dim=%d.", time.time() - t0, embeddings.shape[1])
 
     article_ids = [(c.law_id, c.dieu_so) for c in chunks]
