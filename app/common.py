@@ -108,6 +108,19 @@ h1 {
   padding-bottom: 0.6rem;
   border-bottom: 2px solid var(--primary-color, #2B6E62);
 }
+
+/* Menu điều hướng (st.navigation): giãn dòng + bo góc cho từng mục, tiêu đề nhóm
+   ("Soạn thảo HSMT", "Hỏi-đáp & Phân tích") in hoa nhẹ để phân biệt với mục trang. */
+[data-testid="stSidebarNav"] a, [data-testid="stSidebarNav"] li a {
+  border-radius: 0.4rem;
+}
+[data-testid="stSidebarNav"] > div > span,
+[data-testid="stSidebarNav"] p {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
 </style>
 """
 
@@ -122,4 +135,8 @@ def init_page(title: str) -> None:
     components.html(
         "<script>window.parent.document.documentElement.lang = 'vi';</script>", height=0
     )
+    # Gọi sau khi `st.navigation` đã vẽ menu — hiển thị dưới danh sách trang, không đè.
+    with st.sidebar:
+        st.divider()
+        st.caption("📑 **AutoTender-VN** — Trợ lý soạn HSMT phần mềm/CNTT bằng RAG + Claude API")
     st.title(title)
