@@ -107,10 +107,10 @@ Tier 1 thật.
 `hitl/feedback.py` xuất `data/processed/feedback_generator_{date}.jsonl` (cặp
 generated→edited) và `feedback_compliance_{date}.jsonl` (nhãn đúng/sai người dùng xác
 nhận cho từng cờ). Đây là cơ chế để, khi hệ thống được dùng thật, dữ liệu chất lượng cao
-hơn dữ liệu tổng hợp ở trên sẽ tích luỹ dần và dùng để huấn luyện lại M5/M6 — xem
-`notebooks/04_train_generator.ipynb` để biết cách dữ liệu phản hồi này được đưa vào vòng
-huấn luyện tiếp theo (notebook train M4-retriever cũ đã gỡ cùng `models/retriever.py`,
-xem `docs/MODEL_CARD.md`).
+hơn dữ liệu tổng hợp ở trên sẽ tích luỹ dần — cơ chế thu thập vẫn còn (`hitl/feedback.py`),
+nhưng notebook huấn luyện lại M5 từ dữ liệu này đã bị gỡ (xem lý do trong `docs/MODEL_CARD.md`
+— M5 Tier 1 nay là Claude API có sẵn, không phải checkpoint tự fine-tune, nên không còn nơi
+tiêu thụ dữ liệu huấn luyện này trong kiến trúc hiện tại).
 
 ---
 

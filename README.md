@@ -231,4 +231,3 @@ Xem Mục 4 của [`docs/SPEC.md`](docs/SPEC.md) (Phase 1) — thư mục mới 
 - [`docs/SPEC.md`](docs/SPEC.md) — đặc tả Phase 1 gốc
 - [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — nguồn gốc/giới hạn dữ liệu (Mục 10-13 cho redesign)
 - [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — kiến trúc, tier, metric (phần cuối cho redesign)
-- [`docs/COLAB_GUIDE.md`](docs/COLAB_GUIDE.md) — hướng dẫn Colab (Phase 1, không bắt buộc cho redesign)

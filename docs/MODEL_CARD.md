@@ -25,8 +25,9 @@ Rule-based thuần (regex + từ điển từ khoá), luôn chạy trực tiếp
 prompting) nhưng cả 2 tầng đó **chưa từng chạy thật** trong đồ án (không có checkpoint đã
 train — môi trường không GPU/Colab; Tier 2 còn có lỗi runtime dùng sai tên task pipeline
 của `transformers`) nên khung đó đã được gỡ bỏ khỏi code (giữ nguyên số liệu Tier 3 thật
-bên dưới). Muốn có mô hình fine-tune thật, xem `notebooks/01_train_ner.ipynb` (huấn luyện
-độc lập, chưa nối lại vào `models/ner.py`).
+bên dưới). Đề cương môn học không bắt buộc tự huấn luyện mô hình (Mục 2 đề cương RAG+LLM) —
+notebook huấn luyện PhoBERT từng có cho hướng này đã được gỡ khỏi repo (Mục 15 DATA_CARD.md),
+không phải hướng phát triển được ưu tiên cho kiến trúc rule-based hiện tại.
 
 **Metric (rule-based, distant supervision, 521 bản ghi = 20 tổng hợp + 12 + 489 THẬT — xem
 DATA_CARD.md mục 8, 9):** entity-F1 = 0.956 (micro), per-entity: CONTRACT_TYPE 1.00, DURATION
@@ -65,22 +66,24 @@ redesign RAG+LLM (nhóm 4 người, 15 ngày) — code, test, config và noteboo
 
 ## M5 — Sinh dự thảo (`models/generator.py`)
 
+Đã thay khung Tier 1 gốc của bản đồ án solo 7 ngày (`VietAI/vit5-base` tự fine-tune) bằng
+Claude API ngay từ đầu bản redesign RAG+LLM — đề cương không bắt buộc tự huấn luyện mô hình
+(Mục 2), nên dùng LLM có sẵn làm đường CHÍNH thay vì để trống chờ có checkpoint:
+
 | Tier | Kiến trúc | Trạng thái |
 |---|---|---|
-| 1 | VietAI/vit5-base fine-tune | Chưa có checkpoint |
-| 2 | LLM API ngoài (OpenAI-compatible), chỉ gọi nếu có `AUTOTENDER_LLM_API_KEY` | Không cấu hình trong môi trường demo (mặc định tắt để tránh phát sinh chi phí/rò rỉ dữ liệu ngoài ý muốn) |
-| 3 | Template filling từ corpus mẫu + slot-filling số liệu | **Đang chạy** |
+| 1 | Claude API + ngữ cảnh RAG (hybrid retrieval + rerank) | **Đang chạy** (đường chính, cần `ANTHROPIC_API_KEY`) |
+| 2 | Chưa cấu hình (chỗ dự phòng nếu cần đổi nhà cung cấp LLM sau này) | Chưa dùng |
+| 3 | Template filling từ corpus mẫu + slot-filling số liệu | Dự phòng khi thiếu API key/lỗi mạng — **luôn thành công** |
 
 **Verifier số liệu (`verify_numeric_consistency`):** so khớp mọi con số trong phần văn bản
 KHÔNG PHẢI trích dẫn nguyên văn (loại trừ số liệu đã có citation) với `ExtractedField` từ
 KHLCNT — lệch thì gắn cờ `R4`. Đây là cơ chế bắt buộc theo Mục 2.2 SPEC, hoạt động độc lập
-với tier đang chạy (áp dụng cho cả Tier 1/2 khi có).
+với tier đang chạy (áp dụng cho cả 3 tier).
 
 **Ablation (bỏ retrieval):** số citation giảm từ 5 → 0, nội dung sinh ra chỉ còn phần
-slot-filling, mất căn cứ tham chiếu — minh hoạ vai trò của M4 trong pipeline.
-
-**Việc cần làm để có Tier 1 thật:** chạy `notebooks/04_train_generator.ipynb`, đo
-ROUGE-L/BERTScore so với baseline template filling.
+slot-filling, mất căn cứ tham chiếu — minh hoạ vai trò của M4 trong pipeline. Ablation LLM-only
+vs RAG **thật** (Claude có/không kèm ngữ cảnh) nằm ở `docs/DATA_CARD.md` Mục 13.
 
 **2 nâng cấp thêm cho Tier 1 (Claude), sau khi rà soát đối chiếu với một báo cáo kiến trúc
 RAG nâng cao tham khảo — xem `docs/DATA_CARD.md` Mục 15 để biết ý tưởng nào bị loại và vì
