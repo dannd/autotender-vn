@@ -57,8 +57,8 @@ redesign RAG+LLM (nhóm 4 người, 15 ngày) — code, test, config và noteboo
   Module này bị loại khỏi pipeline mới vì phạm vi hệ thống đã khoá cứng "phần mềm/CNTT"
   (đề cương mới), phân loại loại gói thầu không còn ảnh hưởng đến luồng sinh HSMT.
 - **M4 — Retrieval (BM25-only):** BM25 proxy Recall@5 = 1.0/8 truy vấn mẫu trên corpus minh
-  hoạ 13 chunk (`data/samples/corpus/`, xem DATA_CARD.md mục 5 về giới hạn phương pháp
-  proxy). Thay thế bởi `rag/hybrid_retriever.py` (dense+BM25 hybrid, corpus luật thật 326
+  hoạ 13 chunk (`data/samples/corpus/` — đã gỡ khỏi repo cùng đợt dọn code rác, xem
+  DATA_CARD.md Mục 4). Thay thế bởi `rag/hybrid_retriever.py` (dense+BM25 hybrid, corpus luật thật 326
   Điều/684 chunk) — xem `docs/DATA_CARD.md` mục 12 cho số liệu Recall@k/MRR/nDCG@k thật
   trên tập 46 câu hỏi gán tay.
 

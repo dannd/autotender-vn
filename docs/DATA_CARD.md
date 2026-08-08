@@ -50,39 +50,40 @@ phân bố thật của dữ liệu đấu thầu quốc gia — chỉ đủ đ�
 
 ---
 
-## 4. Corpus RAG (`data/samples/corpus/`)
+## 4. (lịch sử) Corpus RAG minh hoạ — `data/samples/corpus/`, đã gỡ khỏi repo
 
-**QUAN TRỌNG:** Nội dung 3 file `.md` trong thư mục này (`mau_hsmt_chuong_iii.md`,
-`mau_hsmt_chuong_v.md`, `nguyen_tac_phap_ly_minh_hoa.md`) là **văn bản tổng hợp/minh hoạ**
-do nhóm biên soạn, phỏng theo cấu trúc và các nguyên tắc phổ biến được biết đến rộng rãi
-trong thực hành đấu thầu tại Việt Nam (không nêu nhãn hiệu cụ thể, yêu cầu năng lực tương
-xứng quy mô gói thầu...). Đây **KHÔNG PHẢI** trích dẫn nguyên văn của Luật Đấu thầu 2023,
-Nghị định 214/2025/NĐ-CP, hay Thông tư 79/2025/TT-BTC.
-
-Lý do (liên hệ trực tiếp với nguyên tắc "Không bịa đặt" — Mục 2.2 SPEC): nếu corpus chứa
-nội dung tự soạn nhưng gắn nhãn là luật thật, hệ thống RAG/generator sẽ trích dẫn sai một
-cách có hệ thống và không thể phát hiện được bằng cách đọc code. Do đó mọi chunk trong
-corpus này được gắn tiền tố `[MINH HỌA]` trong `source_doc`, hiển thị rõ trên UI (Trang 3,
-panel "Căn cứ & Cờ") để người dùng không nhầm là căn cứ pháp lý thật.
-
-**Trước khi dùng cho mục đích thật:** thay 3 file này bằng văn bản pháp luật/mẫu Thông tư
-đã số hoá và kiểm chứng, giữ nguyên quy ước heading `## ` làm biên giới chunk.
+Bản đồ án solo 7 ngày gốc dùng 3 file `.md` tự biên soạn (`mau_hsmt_chuong_iii.md`,
+`mau_hsmt_chuong_v.md`, `nguyen_tac_phap_ly_minh_hoa.md`) làm corpus RAG **minh hoạ** —
+KHÔNG PHẢI trích dẫn nguyên văn luật thật, mỗi chunk gắn tiền tố `[MINH HỌA]` để tránh trích
+dẫn sai (nguyên tắc "Không bịa đặt" — Mục 2.2 SPEC). Bản redesign RAG+LLM đã thay thế HOÀN
+TOÀN corpus này bằng văn bản pháp luật THẬT, lấy nguyên văn (`data/samples/legal_corpus/`,
+xem Mục 10) — không còn module nào tham chiếu tới `data/samples/corpus/` hay cơ chế gắn tag
+`[MINH HỌA]` nữa, nên thư mục này đã bị xoá khỏi repo (dọn code rác) thay vì để lại dữ liệu
+không còn được dùng.
 
 ---
 
-## 5. Dataset NER — Distant Supervision (`scripts/build_dataset.py`)
+## 5. (lịch sử) Dataset NER — Distant Supervision, `scripts/build_dataset.py` đã gỡ khỏi repo
 
-**Phương pháp:** với mỗi `TenderNotice`, sinh văn bản KHLCNT tổng hợp
-(`ingest/synth_document.py`) rồi khớp chuỗi các trường đã biết (`package_name`,
-`investor`, `package_value`...) vào văn bản để tự động gán nhãn BIO — không cần gán tay.
+**Phương pháp (đã dùng trong bản đồ án solo 7 ngày gốc):** với mỗi `TenderNotice`, sinh văn
+bản KHLCNT tổng hợp (`ingest/synth_document.py`) rồi khớp chuỗi các trường đã biết
+(`package_name`, `investor`, `package_value`...) vào văn bản để tự động gán nhãn BIO — không
+cần gán tay.
 
-**Giới hạn quan trọng (ảnh hưởng cách đọc kết quả trong `reports/metrics.json`):** vì nhãn
-gold sinh ra bằng cách khớp CHÍNH XÁC cùng các giá trị mà module NER Tier 3 (regex) cũng
-tìm cách trích xuất, kết quả entity-F1 = 1.0 phản ánh **tính nhất quán nội tại** giữa 2 cơ
-chế cùng dựa trên khớp chuỗi, KHÔNG phải năng lực tổng quát hoá trên dữ liệu chưa thấy.
-Đây là hạn chế cố hữu khi chưa có dữ liệu thật + tập test 200 mẫu gán tay độc lập theo
-đúng yêu cầu Mục 6/M2 SPEC (việc gán tay quy mô lớn nằm ngoài phạm vi tự động hoá của
-đồ án 7 ngày, cần thực hiện thủ công trên dữ liệu crawl thật khi có).
+**Giới hạn quan trọng đã ghi nhận khi đó (ảnh hưởng cách đọc số liệu entity-F1 lịch sử trong
+MODEL_CARD.md):** vì nhãn gold sinh ra bằng cách khớp CHÍNH XÁC cùng các giá trị mà module
+NER Tier 3 (regex) cũng tìm cách trích xuất, một phần kết quả phản ánh **tính nhất quán nội
+tại** giữa 2 cơ chế cùng dựa trên khớp chuỗi, không hoàn toàn là năng lực tổng quát hoá trên
+dữ liệu chưa thấy — xem MODEL_CARD.md Mục M2 để biết cách đánh giá lại sau đó trên dữ liệu
+thật đã khắc phục một phần hạn chế này.
+
+**Đã gỡ khỏi repo (dọn code rác):** script này chỉ phục vụ huấn luyện Tier 1 (checkpoint
+PhoBERT tự fine-tune) — cả notebook train tương ứng (`01_train_ner.ipynb`) lẫn khung Tier 1/2
+của M2 đều đã bị gỡ (M2 nay thuần rule-based, xem MODEL_CARD.md), nên output của script này
+(`ner_dataset.jsonl`, `classifier_dataset.jsonl`) không còn nơi nào tiêu thụ — kể cả M3
+Classifier từng dùng `classifier_dataset.jsonl` cũng đã bị gỡ trước đó cùng bản redesign
+RAG+LLM. Giữ lại mô tả phương pháp ở đây làm tài liệu tham khảo, không giữ code không ai
+gọi tới.
 
 Tương tự, `m4_retrieval.bm25_proxy_recall_at_5` (số liệu lịch sử, module `models/retriever.py`
 sinh ra nó đã gỡ khỏi repo) dùng proxy "đúng nếu top-5 chứa chunk từ đúng file chương" thay

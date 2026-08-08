@@ -205,7 +205,7 @@ class LocalSampleSource(TenderSource):
         notices_file = self._samples_dir / "tender_notices.jsonl"
         if not notices_file.exists():
             raise TenderSourceError(
-                f"Không tìm thấy {notices_file} — chạy scripts/build_dataset.py hoặc kiểm tra data/samples/."
+                f"Không tìm thấy {notices_file} — chạy scripts/build_samples.py hoặc kiểm tra data/samples/."
             )
         count = 0
         with open(notices_file, encoding="utf-8") as f:
