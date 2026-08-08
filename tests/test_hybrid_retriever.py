@@ -128,7 +128,7 @@ def test_retrieve_reranked_truncates_fused_candidates_to_candidate_k(monkeypatch
 
 def test_retrieve_reranked_returns_empty_when_no_candidates(index_dir):
     retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=index_dir)
-    retriever._fuse_rrf = lambda query, candidate_k: []  # type: ignore[method-assign]
+    retriever._fuse_rrf = lambda query, candidate_k, law_ids=None: []  # type: ignore[method-assign]
 
     assert retriever.retrieve_reranked("bất kỳ", top_k=3) == []
 
@@ -157,3 +157,72 @@ def test_retrieve_dense_raises_clear_error_when_faiss_missing(tmp_path):
 
     with pytest.raises(RuntimeError, match="build_legal_index"):
         retriever.retrieve_dense("bất kỳ")
+
+
+# -- Metadata filtering theo loại văn bản (law_ids) --------------------------------------
+
+_MIXED_LAW_CHUNKS = [
+    {"chunk_id": "m1", "text": "quy định về hồ sơ mời thầu phần mềm", "source_doc": "Luật, Điều 1", "law_id": "luat", "dieu_so": 1},
+    {"chunk_id": "m2", "text": "quy định về hồ sơ mời thầu chi tiết", "source_doc": "Nghị định, Điều 2", "law_id": "nghi_dinh", "dieu_so": 2},
+    {"chunk_id": "m3", "text": "thời gian thực hiện hợp đồng xây lắp", "source_doc": "Luật, Điều 3", "law_id": "luat", "dieu_so": 3},
+]
+
+
+@pytest.fixture
+def mixed_law_index_dir(tmp_path):
+    chunks_path = tmp_path / "chunks.jsonl"
+    with open(chunks_path, "w", encoding="utf-8") as f:
+        for c in _MIXED_LAW_CHUNKS:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+
+    model_dir = tmp_path / _MODEL_KEY
+    model_dir.mkdir()
+    index = FaissChunkIndex(dim=4)
+    index.add([[1.0, 0.0, 0.0, 0.0], [0.9, 0.1, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
+    index.save(model_dir / "index.faiss")
+    (model_dir / "dim.txt").write_text("4", encoding="utf-8")
+    return tmp_path
+
+
+class _MixedLawFakeEncoder:
+    max_seq_length = 999_999
+    tokenizer = _FakeTokenizer()
+
+    def encode(self, texts, show_progress_bar=False, batch_size=32):
+        # Query luôn gần nhất với m2 (Nghị định) khi không lọc.
+        return np.asarray([[0.9, 0.1, 0.0, 0.0] for _ in texts], dtype="float32")
+
+
+def test_indices_for_law_ids_returns_matching_chunk_indices(mixed_law_index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=mixed_law_index_dir)
+    assert retriever.indices_for_law_ids({"luat"}) == {0, 2}
+    assert retriever.indices_for_law_ids({"nghi_dinh"}) == {1}
+    assert retriever.indices_for_law_ids({"khong_ton_tai"}) == set()
+
+
+def test_retrieve_dense_excludes_chunks_outside_law_ids_filter(mixed_law_index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=mixed_law_index_dir)
+    retriever._encoder = _MixedLawFakeEncoder()
+
+    unfiltered = retriever.retrieve_dense("hồ sơ mời thầu", top_k=3)
+    assert unfiltered[0][0] == 1  # m2 (Nghị định) gần nhất khi không lọc
+
+    filtered = retriever.retrieve_dense("hồ sơ mời thầu", top_k=3, law_ids={"luat"})
+    assert {i for i, _ in filtered} == {0, 2}  # chỉ còn 2 chunk thuộc "luat"
+
+
+def test_retrieve_sparse_excludes_chunks_outside_law_ids_filter(mixed_law_index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=mixed_law_index_dir)
+
+    filtered = retriever.retrieve_sparse("hồ sơ mời thầu", top_k=3, law_ids={"nghi_dinh"})
+    assert {i for i, _ in filtered} == {1}
+
+
+def test_retrieve_with_law_ids_filter_only_returns_matching_chunks(mixed_law_index_dir):
+    retriever = HybridLegalRetriever(model_key=_MODEL_KEY, index_dir=mixed_law_index_dir)
+    retriever._encoder = _MixedLawFakeEncoder()
+
+    results = retriever.retrieve("hồ sơ mời thầu", top_k=3, candidate_k=3, law_ids={"luat"})
+
+    assert results
+    assert all(r.law_id == "luat" for r in results)

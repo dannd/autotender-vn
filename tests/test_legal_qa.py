@@ -56,6 +56,8 @@ def test_ask_uses_claude_when_available(monkeypatch, retriever):
     monkeypatch.setattr(
         legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude (Điều 44)."
     )
+    # Không gọi Claude Haiku thật (query rewrite) trong unit test — giữ nguyên câu hỏi gốc.
+    monkeypatch.setattr(legal_qa_module, "rewrite_query", lambda question, model=None: question)
 
     answer = module.ask("Hồ sơ mời thầu gồm những gì?")
 
@@ -64,6 +66,85 @@ def test_ask_uses_claude_when_available(monkeypatch, retriever):
     assert "Claude" in answer.answer
     assert len(answer.citations) == 1
     assert answer.citations[0].dieu_so == 44
+
+
+def test_ask_uses_rewritten_query_for_retrieval_not_for_displayed_question(monkeypatch, retriever):
+    """Câu hỏi hiển thị/trả lời (`QAAnswer.question`) phải giữ nguyên bản gốc của người dùng —
+    chỉ câu dùng để TRUY HỒI mới bị viết lại (HyDE-lite, xem `generation/query_rewrite.py`)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    module = LegalQAModule(retriever=retriever)
+    # `use_query_rewrite` mặc định False (đo thật cho thấy làm giảm chất lượng truy hồi, xem
+    # configs/models.yaml) — bật tường minh ở đây vì test này kiểm tra riêng NHÁNH bật.
+    module._cfg = dict(module._cfg, use_rerank=False, use_query_rewrite=True)
+    monkeypatch.setattr(legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude.")
+
+    seen_queries: list[str] = []
+    original_retrieve = retriever.retrieve
+
+    def _spy_retrieve(query, **kwargs):
+        seen_queries.append(query)
+        return original_retrieve(query, **kwargs)
+
+    monkeypatch.setattr(retriever, "retrieve", _spy_retrieve)
+    monkeypatch.setattr(
+        legal_qa_module, "rewrite_query", lambda question, model=None: "hồ sơ mời thầu (thuật ngữ chuẩn hoá)"
+    )
+
+    answer = module.ask("thầu qua mạng thế nào")
+
+    assert answer.question == "thầu qua mạng thế nào"
+    assert seen_queries == ["hồ sơ mời thầu (thuật ngữ chuẩn hoá)"]
+
+
+def test_ask_skips_rewrite_when_disabled_in_config(monkeypatch, retriever):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    module = LegalQAModule(retriever=retriever)
+    module._cfg = dict(module._cfg, use_rerank=False, use_query_rewrite=False)
+    monkeypatch.setattr(legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude.")
+
+    def _fail_if_called(question, model=None):
+        raise AssertionError("rewrite_query không nên được gọi khi use_query_rewrite=False")
+
+    monkeypatch.setattr(legal_qa_module, "rewrite_query", _fail_if_called)
+
+    module.ask("Hồ sơ mời thầu gồm những gì?")
+
+
+def test_ask_uses_classifier_law_ids_filter_when_enabled(monkeypatch, retriever):
+    """`use_law_id_filter=True` phải truyền law_ids từ bộ phân loại xuống `retriever.retrieve`
+    (metadata filtering, xem `generation/law_classifier.py`)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    module = LegalQAModule(retriever=retriever)
+    module._cfg = dict(module._cfg, use_rerank=False, use_law_id_filter=True)
+    monkeypatch.setattr(legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude.")
+
+    seen_law_ids: list[set[str] | None] = []
+    original_retrieve = retriever.retrieve
+
+    def _spy_retrieve(query, **kwargs):
+        seen_law_ids.append(kwargs.get("law_ids"))
+        return original_retrieve(query, **kwargs)
+
+    monkeypatch.setattr(retriever, "retrieve", _spy_retrieve)
+    monkeypatch.setattr(legal_qa_module, "classify_relevant_law_ids", lambda question, model=None: {"x"})
+
+    module.ask("Nghị định 45/2026 quy định gì về nghiệm thu phần mềm?")
+
+    assert seen_law_ids == [{"x"}]
+
+
+def test_ask_skips_law_id_filter_when_disabled_in_config(monkeypatch, retriever):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    module = LegalQAModule(retriever=retriever)
+    module._cfg = dict(module._cfg, use_rerank=False, use_law_id_filter=False)
+    monkeypatch.setattr(legal_qa_module, "call_claude", lambda **kwargs: "Câu trả lời từ Claude.")
+
+    def _fail_if_called(question, model=None):
+        raise AssertionError("classify_relevant_law_ids không nên được gọi khi use_law_id_filter=False")
+
+    monkeypatch.setattr(legal_qa_module, "classify_relevant_law_ids", _fail_if_called)
+
+    module.ask("Hồ sơ mời thầu gồm những gì?")
 
 
 def test_ask_falls_back_to_template_when_claude_unavailable(monkeypatch, retriever):

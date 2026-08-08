@@ -198,7 +198,8 @@ Faithfulness (LLM-as-judge) + ablation LLM-only vs RAG (`scripts/run_ablation_ta
 8 câu hỏi): RAG cải thiện faithfulness từ **0.41 → 0.94** và completeness từ **0.44 →
 0.87** so với gọi thẳng LLM không có ngữ cảnh — xem chi tiết + các lỗi kỹ thuật phát hiện
 khi chạy live (temperature/extended thinking/số trích dẫn bị gắn cờ oan) tại
-`docs/DATA_CARD.md` Mục 13.
+`docs/DATA_CARD.md` Mục 13 (đối chiếu thuật ngữ Faithfulness/Context Recall/Context
+Precision với framework RAGAS ở Mục 14).
 
 ---
 

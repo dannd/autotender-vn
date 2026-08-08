@@ -27,3 +27,19 @@ qa:
   candidate_k: 50
   top_k_citations: 5
   max_tokens: 1024
+  # HyDE-lite: chuẩn hoá thuật ngữ câu hỏi bằng Claude Haiku TRƯỚC KHI truy hồi (chỉ Tier 1,
+  # câu hỏi tự do từ người dùng — xem generation/query_rewrite.py). MẶC ĐỊNH TẮT: đo thật
+  # trên 46 câu hỏi eval (`python scripts/run_retrieval_eval.py --rewrite`,
+  # reports/retrieval_metrics_rewrite.json) cho thấy viết lại làm GIẢM chất lượng truy hồi ở
+  # hầu hết chế độ (vd hybrid+rerank Recall@5 0.761→0.652, MRR 0.587→0.473) — xem
+  # docs/DATA_CARD.md Mục 12.2 để biết lý do. Giữ tính năng lại (đã test) phòng khi áp dụng
+  # cho câu hỏi khẩu ngữ/mơ hồ hơn tập eval hiện tại, nhưng KHÔNG bật mặc định vì đã đo hại.
+  use_query_rewrite: false
+  rewrite_model: "claude-haiku-4-5-20251001"
+  # Metadata filtering theo loại văn bản (law_id) TRƯỚC KHI truy hồi — xem
+  # generation/law_classifier.py. Oracle filter (biết trước đáp án) cho thấy TRẦN lợi ích lớn
+  # (hybrid+rerank nDCG@5 0.627→0.734, MRR 0.587→0.707 trên 46 câu eval) — khác hẳn kết quả
+  # tiêu cực của query rewrite. Đang đo bộ phân loại THẬT (`--classify-filter`) để quyết định
+  # bật mặc định hay không — xem docs/DATA_CARD.md Mục 12.3 để biết kết quả cuối cùng.
+  use_law_id_filter: false
+  classifier_model: "claude-haiku-4-5-20251001"

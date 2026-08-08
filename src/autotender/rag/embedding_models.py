@@ -1,8 +1,16 @@
-"""Đăng ký 2 model embedding dùng để so sánh (Mục "Phân tích DL" — đề cương RAG+LLM).
+"""Đăng ký các model embedding dùng để so sánh (Mục "Phân tích DL" — đề cương RAG+LLM).
 
 Chọn 1 model tiếng Việt chuyên biệt và 1 model đa ngôn ngữ để có sự đối lập rõ về kiến
 trúc/dữ liệu huấn luyện — phục vụ so sánh Recall@k/MRR/nDCG và trực quan hoá t-SNE/UMAP
 không gian embedding theo loại điều khoản (Giai đoạn 3 của kế hoạch).
+
+`bge_m3` (BAAI/bge-m3) thêm sau làm ứng viên thứ 3 — nhắm thẳng vào giới hạn KIẾN TRÚC đã
+phát hiện ở `encode_texts` (bên dưới): `vi_bi_encoder` chỉ nhận 256 token (65% chunk kho tri
+thức từng bị cắt âm thầm trước khi có sliding-window mean-pooling), trong khi `bge-m3` hỗ trợ
+tới 8192 token — giải quyết tận gốc thay vì chỉ giảm nhẹ triệu chứng bằng windowing. Dùng qua
+`sentence-transformers` (chỉ lấy nhánh dense embedding tiêu chuẩn của model, KHÔNG dùng tính
+năng sparse/ColBERT multi-vector riêng của `bge-m3` — cần thư viện `FlagEmbedding` riêng,
+ngoài phạm vi so sánh embedding đơn thuần ở đây).
 """
 
 from __future__ import annotations
@@ -12,6 +20,8 @@ EMBEDDING_MODELS: dict[str, str] = {
     "vi_bi_encoder": "bkai-foundation-models/vietnamese-bi-encoder",
     # Đa ngôn ngữ tổng quát (paraphrase mining, 50+ ngôn ngữ trong đó có tiếng Việt) — 384 chiều.
     "multilingual_minilm": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    # Đa ngôn ngữ, ngữ cảnh dài (multi-granularity: dense/sparse/ColBERT) — 1024 chiều.
+    "bge_m3": "BAAI/bge-m3",
 }
 
 DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"

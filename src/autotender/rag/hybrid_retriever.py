@@ -62,6 +62,7 @@ class HybridLegalRetriever:
         self._bm25_index: BM25Index | None = None
         self._encoder = None  # tải trễ — chỉ cần khi có truy vấn thật
         self._cross_encoder_name = CROSS_ENCODER_MODEL
+        self._article_lookup: dict[tuple[str, int], str] | None = None  # tải trễ, xem _get_article_lookup
 
     @staticmethod
     def _chunk_legal_corpus_directly() -> list[dict]:
@@ -105,6 +106,12 @@ class HybridLegalRetriever:
             self._bm25_index = build_bm25_index([c["text"] for c in self._chunks])
         return self._bm25_index
 
+    def indices_for_law_ids(self, law_ids: set[str]) -> set[int]:
+        """Chỉ số chunk có `law_id` nằm trong `law_ids` — dùng cho metadata filtering theo
+        loại văn bản TRƯỚC KHI xếp hạng (`retrieve*(..., law_ids=...)`). Public vì
+        `scripts/run_retrieval_eval.py` cần gọi trực tiếp để đo ablation "oracle filter"."""
+        return {i for i, c in enumerate(self._chunks) if c.get("law_id") in law_ids}
+
     def _to_retrieved_chunk(self, idx: int, score: float) -> RetrievedChunk:
         c = self._chunks[idx]
         return RetrievedChunk(
@@ -112,7 +119,7 @@ class HybridLegalRetriever:
             score=score, law_id=c.get("law_id"), dieu_so=c.get("dieu_so"),
         )
 
-    def retrieve_dense(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
+    def retrieve_dense(self, query: str, top_k: int = 50, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
         if self._faiss_index is None:
             raise RuntimeError(
                 f"Chưa có FAISS index cho model '{self.model_key}' tại {self._index_dir / self.model_key} — "
@@ -125,20 +132,30 @@ class HybridLegalRetriever:
         # hợp câu hỏi dài bị cắt âm thầm còn chunk trong kho tri thức thì không (hoặc
         # ngược lại) — xem docstring `encode_texts`.
         query_vec = encode_texts(encoder, [query])[0]
-        indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
-        return [(i, s) for i, s in zip(indices, scores) if i >= 0]
+        if law_ids is None:
+            indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
+            return [(i, s) for i, s in zip(indices, scores) if i >= 0]
+        # FAISS `IndexFlatIP` không hỗ trợ lọc theo metadata trước khi xếp hạng — corpus nhỏ
+        # (vài trăm chunk) nên lấy TOÀN BỘ kết quả xếp hạng rồi lọc/cắt lại trong Python, thay
+        # vì tích hợp `faiss.IDSelector` (phức tạp hơn, không cần thiết ở quy mô này). Đúng
+        # kết quả (không phải xấp xỉ) vì lọc SAU KHI đã có thứ hạng đầy đủ, không lọc top-k
+        # đã cắt sẵn (tránh bỏ sót kết quả đúng nằm ngoài top-k không lọc).
+        allowed = self.indices_for_law_ids(law_ids)
+        indices, scores = self._faiss_index.search(query_vec, len(self._chunks))
+        filtered = [(i, s) for i, s in zip(indices, scores) if i >= 0 and i in allowed]
+        return filtered[:top_k]
 
-    def retrieve_sparse(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
-        return self._get_bm25().search(query, min(top_k, len(self._chunks)))
+    def retrieve_sparse(self, query: str, top_k: int = 50, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
+        allowed = self.indices_for_law_ids(law_ids) if law_ids is not None else None
+        return self._get_bm25().search(query, min(top_k, len(self._chunks)), allowed_indices=allowed)
 
-
-    def _fuse_rrf(self, query: str, candidate_k: int) -> list[tuple[int, float]]:
+    def _fuse_rrf(self, query: str, candidate_k: int, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
         # Dense chỉ chạy được nếu đã build FAISS (`scripts/build_legal_index.py`); nếu chưa,
         # coi như không có kết quả dense thay vì raise — để `retrieve`/`retrieve_reranked`
         # luôn thành công (BM25-only), giữ nguyên tắc "Tier 3 luôn chạy được" cho các module
         # gọi retriever này mà không cần biết trước FAISS đã sẵn sàng hay chưa.
-        dense = self.retrieve_dense(query, candidate_k) if self._faiss_index is not None else []
-        sparse = self.retrieve_sparse(query, candidate_k)
+        dense = self.retrieve_dense(query, candidate_k, law_ids=law_ids) if self._faiss_index is not None else []
+        sparse = self.retrieve_sparse(query, candidate_k, law_ids=law_ids)
 
         rrf_scores: dict[int, float] = {}
         for rank, (idx, _score) in enumerate(dense):
@@ -147,23 +164,60 @@ class HybridLegalRetriever:
             rrf_scores[idx] = rrf_scores.get(idx, 0.0) + 1.0 / (RRF_K + rank + 1)
         return sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
 
-    def retrieve(self, query: str, top_k: int = 10, candidate_k: int = 50) -> list[RetrievedChunk]:
+    def retrieve(
+        self, query: str, top_k: int = 10, candidate_k: int = 50, law_ids: set[str] | None = None
+    ) -> list[RetrievedChunk]:
         """Hợp nhất dense + sparse bằng RRF. `candidate_k`: số ứng viên lấy từ MỖI hệ thống
-        trước khi hợp nhất (mặc định 50, theo kế hoạch "top-50" trước rerank)."""
-        ranked = self._fuse_rrf(query, candidate_k)[:top_k]
+        trước khi hợp nhất (mặc định 50, theo kế hoạch "top-50" trước rerank). `law_ids`
+        (tuỳ chọn): chỉ xét chunk thuộc các văn bản này (metadata filtering, vd chỉ tìm trong
+        Nghị định 45/2026/NĐ-CP cho câu hỏi rõ ràng về chuyên ngành CNTT) — xem
+        `docs/DATA_CARD.md` Mục 12.3 về số liệu đo tác động thật (oracle filter)."""
+        ranked = self._fuse_rrf(query, candidate_k, law_ids=law_ids)[:top_k]
         return [self._to_retrieved_chunk(idx, score) for idx, score in ranked]
 
-    def retrieve_reranked(self, query: str, top_k: int = 5, candidate_k: int = 50) -> list[RetrievedChunk]:
+    def _get_article_lookup(self) -> dict[tuple[str, int], str]:
+        """`(law_id, dieu_so) -> nguyên văn TRỌN Điều` — dùng cho `expand_to_parent_article`.
+        Đa số Điều đã là 1 chunk = 1 Điều trọn vẹn (`chunker.py::chunk_legal_article`, ngưỡng
+        `MAX_WORDS`); lookup này chỉ thực sự cần thiết cho phần thiểu số Điều dài bị cắt theo
+        Khoản, nơi 1 chunk chỉ chứa 1-2 khoản chứ không phải trọn Điều."""
+        if self._article_lookup is None:
+            from autotender.rag.chunker import load_legal_articles
+
+            lookup: dict[tuple[str, int], str] = {}
+            corpus_dir = resolve_path("data/samples/legal_corpus")
+            if corpus_dir.exists():
+                for path in sorted(corpus_dir.glob("*.jsonl")):
+                    for article in load_legal_articles(path):
+                        lookup[(article.law_id, article.dieu_so)] = article.text
+            self._article_lookup = lookup
+        return self._article_lookup
+
+    def expand_to_parent_article(self, chunk: RetrievedChunk) -> str:
+        """Trả về nguyên văn TRỌN Điều chứa `chunk`, thay vì chỉ đoạn Khoản đã khớp truy hồi —
+        dùng khi build ngữ cảnh cho LLM sinh văn bản (M5 Generator, Mức 1 Hỏi-đáp), để mô hình
+        thấy đủ ngữ cảnh pháp lý của cả Điều thay vì 1 khoản bị tách rời (ý tưởng
+        "Parent-Child Chunking", áp ở tầng đọc ngữ cảnh thay vì đổi lại cách chunk/index —
+        retrieval, rerank và đánh giá Recall@k/MRR/nDCG vẫn tính trên chunk gốc, không đổi
+        hành vi/số liệu đã đo). Rơi về `chunk.text` nếu thiếu metadata hoặc không tìm thấy
+        Điều gốc trong corpus (vd corpus đã thay đổi sau khi build index)."""
+        if chunk.law_id is None or chunk.dieu_so is None:
+            return chunk.text
+        return self._get_article_lookup().get((chunk.law_id, chunk.dieu_so), chunk.text)
+
+    def retrieve_reranked(
+        self, query: str, top_k: int = 5, candidate_k: int = 50, law_ids: set[str] | None = None
+    ) -> list[RetrievedChunk]:
         """Hybrid RRF (top `candidate_k`) rồi rerank bằng cross-encoder xuống `top_k`
         (mặc định top-50 -> top-5, đúng theo kế hoạch). Chậm hơn `retrieve` nhiều lần
         (cross-encoder chạy N lần forward pass, N = candidate_k) — chỉ dùng khi cần độ
-        chính xác cao nhất (Mức 2 soạn mục HSMT), không dùng cho việc so sánh tốc độ."""
+        chính xác cao nhất (Mức 2 soạn mục HSMT), không dùng cho việc so sánh tốc độ.
+        `law_ids`: xem `retrieve`."""
         # `_fuse_rrf` trả về HỢP của cả 2 nhánh (tối đa 2*candidate_k mục khác nhau nếu
         # dense/sparse không trùng ứng viên nào) — phải cắt về đúng candidate_k trước khi
         # rerank, nếu không cross-encoder chạy trên nhiều hơn "top-50" đã định (xác nhận
         # thực tế: 82 ứng viên thay vì 50 trên corpus 684 đoạn), tốn thêm ~60% thời gian
         # inference một cách không cần thiết.
-        candidates = self._fuse_rrf(query, candidate_k)[:candidate_k]
+        candidates = self._fuse_rrf(query, candidate_k, law_ids=law_ids)[:candidate_k]
         if not candidates:
             return []
 

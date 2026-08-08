@@ -43,8 +43,13 @@ class BM25Index:
             score += idf * (tf * (self.k1 + 1)) / denom
         return score
 
-    def search(self, query: str, top_k: int) -> list[tuple[int, float]]:
-        scores = [(i, self.score(query, i)) for i in range(len(self.doc_tokens))]
+    def search(self, query: str, top_k: int, allowed_indices: set[int] | None = None) -> list[tuple[int, float]]:
+        """`allowed_indices` (tuỳ chọn): chỉ tính điểm/xếp hạng trong tập chỉ số này — dùng
+        cho metadata filtering theo loại văn bản (`HybridLegalRetriever`), lọc TRƯỚC khi xếp
+        hạng thay vì lọc top-k đã cắt sẵn (tránh bỏ sót kết quả đúng nằm ngoài top-k không lọc
+        nhưng lẽ ra phải vào top-k SAU KHI lọc)."""
+        indices = range(len(self.doc_tokens)) if allowed_indices is None else sorted(allowed_indices)
+        scores = [(i, self.score(query, i)) for i in indices]
         scores.sort(key=lambda x: x[1], reverse=True)
         return scores[:top_k]
 

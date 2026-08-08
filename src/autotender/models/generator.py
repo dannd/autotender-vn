@@ -171,7 +171,13 @@ _SYSTEM_PROMPT = (
     "khoản pháp luật ngoài trích đoạn đã cho. Số liệu (giá gói thầu, thời gian, nguồn vốn...) "
     "PHẢI lấy nguyên văn từ trường thông tin gói thầu, không tự tính toán hay làm tròn khác đi. "
     "Ghi rõ nguồn căn cứ pháp lý (vd \"(Điều 44, Luật Đấu thầu 22/2023/QH15)\") khi áp dụng một "
-    "quy định cụ thể. Trả lời bằng tiếng Việt, văn phong hành chính, không thêm lời dẫn/kết thừa."
+    "quy định cụ thể. TUYỆT ĐỐI KHÔNG đưa ra tiêu chí mang tính chất hạn chế cạnh tranh hoặc "
+    "tạo lợi thế cho một nhà thầu cụ thể — cấm nêu tên nhãn hiệu/xuất xứ cụ thể, cấm yêu cầu "
+    "năng lực/doanh thu vượt ngưỡng hợp lý so với quy mô gói thầu, cấm mô tả thông số kỹ thuật "
+    "chỉ một sản phẩm/nhà cung cấp mới đáp ứng được (vi phạm nguyên tắc cạnh tranh, công bằng, "
+    "minh bạch — Điều 44 Luật Đấu thầu 22/2023/QH15). Đây là yêu cầu bắt buộc ngay khi soạn, "
+    "không chỉ để hệ thống rà soát lại sau. Trả lời bằng tiếng Việt, văn phong hành chính, "
+    "không thêm lời dẫn/kết thừa."
 )
 
 
@@ -216,7 +222,7 @@ class GeneratorModule(BaseModule[GeneratedSection]):
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan cho mục này.")
 
         model = self._cfg.get("claude_model", "claude-sonnet-5")
-        prompt = self._build_prompt(section_id, fields, citations)
+        prompt = self._build_prompt(section_id, fields, citations, self._retriever)
         try:
             text = call_claude(
                 system=_SYSTEM_PROMPT, user_prompt=prompt, model=model,
@@ -257,10 +263,20 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         return GeneratedSection(section_id=section_id, title=definition["title"], text=text, citations=citations)
 
     @staticmethod
-    def _build_prompt(section_id: str, fields: list[ExtractedField], citations: list[RetrievedChunk]) -> str:
+    def _build_prompt(
+        section_id: str,
+        fields: list[ExtractedField],
+        citations: list[RetrievedChunk],
+        retriever: HybridLegalRetriever,
+    ) -> str:
         definition = SECTION_DEFINITIONS[section_id]
         fields_str = "\n".join(f"- {f.name}: {f.value}" for f in fields)
-        context_str = "\n\n".join(f"[{c.source_doc}]\n{c.text}" for c in citations)
+        # Gửi TRỌN Điều (không chỉ đoạn Khoản đã khớp truy hồi) làm ngữ cảnh cho Claude —
+        # xem `HybridLegalRetriever.expand_to_parent_article`. Chỉ áp ở đây (ngữ cảnh cho
+        # LLM), KHÔNG áp cho retrieval/rerank/citation hiển thị UI hay Tier 3 template.
+        context_str = "\n\n".join(
+            f"[{c.source_doc}]\n{retriever.expand_to_parent_article(c)}" for c in citations
+        )
         return (
             f"Hãy soạn nội dung mục \"{definition['title']}\" thuộc {definition['chapter']}.\n\n"
             f"Trường thông tin gói thầu (đã trích xuất từ KHLCNT):\n{fields_str}\n\n"

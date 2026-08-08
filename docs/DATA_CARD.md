@@ -402,6 +402,73 @@ vấn đề thật, đã sửa và đo lại tác động:
      cho thấy lợi ích rõ — cần tập câu hỏi lớn hơn để đánh giá lại tác động lên rerank một
      cách đáng tin cậy hơn, ghi vào hướng phát triển (Mục "Giới hạn").
 
+### 12.2. Query Rewriting (HyDE-lite) — đo thật, kết quả TIÊU CỰC, giữ tính năng nhưng tắt mặc định
+
+Thử nghiệm ý tưởng HyDE (Gao et al., 2022) bản rút gọn: dùng Claude Haiku viết lại câu hỏi
+bằng thuật ngữ pháp lý chuẩn hoá TRƯỚC KHI truy hồi (`generation/query_rewrite.py`), áp cho
+Mức 1 Hỏi-đáp. Đo lại toàn bộ 46 câu hỏi eval với câu hỏi đã viết lại
+(`python scripts/run_retrieval_eval.py --rewrite`, `reports/retrieval_metrics_rewrite.json`):
+
+| Chế độ | Recall@5 (gốc → viết lại) | MRR (gốc → viết lại) | nDCG@5 (gốc → viết lại) |
+|---|---|---|---|
+| Dense (bi-encoder) | 0.696 → **0.435** | 0.546 → **0.332** | 0.580 → **0.350** |
+| BM25 (sparse) | 0.565 → 0.522 | 0.385 → 0.409 | 0.426 → 0.430 |
+| Hybrid RRF | 0.674 → **0.565** | 0.537 → **0.384** | 0.564 → **0.421** |
+| Hybrid RRF + rerank | 0.761 → **0.652** | 0.587 → **0.473** | 0.627 → **0.511** |
+
+**Kết quả: viết lại câu hỏi làm GIẢM chất lượng truy hồi rõ rệt** ở dense/hybrid/hybrid+rerank
+(chế độ đang dùng thật cho Mức 1/Mức 2), chỉ xấp xỉ không đổi ở BM25 đơn lẻ. Nguyên nhân hợp
+lý nhất: 46 câu hỏi eval đã được biên soạn thủ công bằng thuật ngữ pháp lý tương đối chuẩn từ
+đầu (Mục 12) — khác giả định của HyDE là câu hỏi gốc "khẩu ngữ, thiếu thuật ngữ". Việc Claude
+Haiku diễn giải lại (thường DÀI hơn câu gốc 3-5 lần, xem ví dụ log) làm loãng embedding/từ khoá
+thay vì làm rõ hơn — với dense retrieval đặc biệt nặng vì embedding của một đoạn diễn giải dài
+trôi xa hơn khỏi vector của Điều luật gốc so với câu hỏi ngắn ban đầu.
+
+**Quyết định**: giữ code + test (`tests/test_query_rewrite.py`, đã verify hành vi rewrite/fallback
+đúng) vì đây là tính năng hoạt động đúng thiết kế, có thể hữu ích cho câu hỏi khẩu ngữ/mơ hồ hơn
+tập eval hiện tại (chưa có tập câu hỏi kiểu đó để kiểm chứng) — nhưng **tắt mặc định**
+(`use_query_rewrite: false`, `configs/models.yaml`) vì số liệu đo thật không ủng hộ bật mặc
+định. Đây là minh chứng cụ thể khác cho nguyên tắc xuyên suốt dự án: đo thật trước khi khẳng
+định "nâng cấp" — một ý tưởng phổ biến trong tài liệu RAG (kể cả trong báo cáo tham khảo ở Mục
+15) không tự động cải thiện hệ thống cụ thể này.
+
+### 12.3. Metadata filtering theo loại văn bản — TRẦN lợi ích lớn, nhưng bộ phân loại thật lại HẠI
+
+Hạ tầng lọc (`HybridLegalRetriever.retrieve*(..., law_ids=...)`, `indices_for_law_ids`) lọc
+candidate theo `law_id` TRƯỚC KHI xếp hạng — corpus nhỏ (684 chunk) nên lọc đúng (không xấp xỉ)
+bằng cách lấy toàn bộ kết quả xếp hạng rồi lọc/cắt lại, không cần tích hợp `faiss.IDSelector`.
+Đo theo 3 kịch bản trên 46 câu hỏi eval, 2 chế độ đang dùng thật (Mức 1/2):
+
+| Chế độ | Kịch bản | Recall@5 | MRR | nDCG@5 |
+|---|---|---|---|---|
+| Hybrid RRF | Không lọc (nền) | 0.674 | 0.537 | 0.564 |
+| Hybrid RRF | **Oracle** (biết trước `law_id` đúng) | **0.804** | **0.603** | **0.649** |
+| Hybrid RRF | Bộ phân loại THẬT (Claude Haiku) | 0.587 | 0.404 | 0.445 |
+| Hybrid RRF + rerank | Không lọc (nền) | 0.761 | 0.587 | 0.627 |
+| Hybrid RRF + rerank | **Oracle** (biết trước `law_id` đúng) | **0.848** | **0.707** | **0.734** |
+| Hybrid RRF + rerank | Bộ phân loại THẬT (Claude Haiku) | 0.630 | 0.507 | 0.531 |
+
+**Oracle filter cho thấy TRẦN lợi ích rất lớn** (nDCG@5 +17%, MRR +20% ở chế độ rerank) — hoàn
+toàn ngược với query rewrite (Mục 12.2), xác nhận ý tưởng "thu hẹp phạm vi tìm kiếm đúng văn
+bản" LÀ đáng giá về mặt lý thuyết cho corpus đa văn bản này.
+
+**Nhưng bộ phân loại THẬT (`generation/law_classifier.py`, Claude Haiku, không biết trước đáp
+án) lại làm KẾT QUẢ TỆ HƠN CẢ KHÔNG LỌC** — thấp hơn cả baseline, chưa nói tới oracle. Xem log
+chạy (`--classify-filter`): bộ phân loại có xu hướng chỉ đoán `luat_22_2023_qh15` đơn lẻ, bỏ
+sót các văn bản liên quan khác (vd bỏ sót `nd_214_2025_ndcp` dù câu hỏi rõ ràng thuộc cả hai —
+nhiều câu "đúng=False" trong log). **Nguyên nhân cốt lõi**: lọc sai theo hướng LOẠI BỎ văn bản
+đúng là lỗi KHÔNG THỂ CỨU — chunk đúng biến mất hoàn toàn khỏi candidate pool, Recall@k của câu
+đó tụt về 0 bất kể retrieval/rerank tốt đến đâu sau đó; trong khi không lọc gì vẫn còn cơ hội
+tìm đúng qua xếp hạng. Một bộ phân loại có độ chính xác chưa đủ cao khiến rủi ro "loại nhầm"
+lớn hơn lợi ích "thu hẹp phạm vi" mang lại.
+
+**Quyết định**: giữ `use_law_id_filter: false` mặc định (`configs/models.yaml`), giữ code +
+test đầy đủ (`tests/test_law_classifier.py`, `tests/test_legal_qa.py`) vì hạ tầng lọc hoạt
+động đúng thiết kế (bằng chứng: oracle filter cho số liệu tốt hơn hẳn). Hướng cải thiện thật
+sự (không thực hiện trong phạm vi đồ án này) là nâng ĐỘ CHÍNH XÁC bộ phân loại — vd few-shot
+prompt với ví dụ câu hỏi/nhãn đúng, hoặc mô hình phân loại nhỏ tự huấn luyện trên các câu hỏi
+eval hiện có — chứ không phải bỏ ý tưởng lọc, vốn đã được chứng minh có trần lợi ích thật.
+
 ---
 
 ## 13. Faithfulness (LLM-as-judge) + bảng ablation LLM-only vs RAG
@@ -460,3 +527,75 @@ tôi tự phát hiện ở Mục 10 khi ban đầu suýt dùng nhầm Nghị đ�
 
 Các vấn đề này chỉ lộ ra khi chạy THẬT với API key có credit — một minh chứng cụ thể cho
 giá trị của việc kiểm thử end-to-end thay vì chỉ tin vào test đã mock.
+
+---
+
+## 14. Đối chiếu thuật ngữ đánh giá với RAGAS
+
+Bộ chỉ số tự viết (Mục 12-13) đo cùng khái niệm với framework RAGAS phổ biến trong literature
+RAG, nhưng KHÔNG dùng lại tên gọi từ đầu — bảng dưới đối chiếu để người đọc quen RAGAS dễ nhận
+diện, đồng thời nêu rõ chỗ KHÔNG tương đương 1:1 (tránh gắn nhãn sai chỉ để nghe "chuẩn" hơn):
+
+| Chỉ số của dự án | Cách đo | Tương đương RAGAS | Ghi chú |
+|---|---|---|---|
+| Faithfulness (Mục 13) | LLM-as-judge (Claude) chấm khẳng định trong văn bản sinh có được trích đoạn hỗ trợ không | **Faithfulness** | Tương đương khái niệm — cùng đo tính "không bịa" so với ngữ cảnh đã truy hồi |
+| Recall@k (Mục 12) | Điều đúng (gán nhãn tay) có nằm trong top-k kết quả truy hồi | **Context Recall** | Tương đương khái niệm — cùng đo độ phủ của tập truy hồi so với ground-truth |
+| nDCG@k (Mục 12) | Chất lượng xếp hạng có trọng số theo vị trí | Gần với **Context Precision** | Không giống hệt công thức RAGAS (LLM-judge từng đoạn có liên quan hay không), nhưng cùng mục tiêu: thưởng kết quả đúng xếp hạng cao |
+| Completeness (Mục 13) | LLM-as-judge chấm mức tận dụng đầy đủ thông tin sẵn có trong trích đoạn | *Không có tương đương trực tiếp* | Khác **Answer Relevancy** của RAGAS (đo mức câu trả lời khớp với câu hỏi, không phải mức tận dụng ngữ cảnh) — cố tình KHÔNG gắn nhãn "Answer Relevancy" vì sẽ sai bản chất phép đo |
+
+**Vì sao không dùng thẳng thư viện `ragas`:** framework RAGAS mặc định cần một LLM giám khảo
+qua API tương thích OpenAI; tích hợp thêm một tầng phụ thuộc chỉ để đổi tên chỉ số không tạo
+thêm giá trị đo lường so với bộ tự viết hiện tại (đã chạy thật, có số liệu trace được, cùng
+giám khảo Claude nhất quán với model sinh). Nếu mở rộng đồ án sau này, có thể thay
+`faithfulness_eval.py`/`retrieval_eval.py` bằng lời gọi `ragas.evaluate()` mà không đổi ý
+nghĩa số liệu đã báo cáo ở đây.
+
+---
+
+## 15. Rà soát một báo cáo kiến trúc RAG nâng cao tham khảo — ý tưởng nào được áp dụng
+
+Một tài liệu tham khảo bên ngoài ("Báo cáo Kiến trúc Pipeline Phần mềm Soạn thảo HSMT — Advanced
+RAG & Claude LLM") được đối chiếu với hệ thống hiện tại để tìm điểm nâng cấp. Tài liệu này có
+2 vấn đề đáng lưu ý làm giảm độ tin cậy nếu dùng nguyên trạng:
+
+1. **Trích dẫn sai số hiệu văn bản pháp luật**: dẫn "Thông tư 06/2024/TT-BKHĐT" và "Thông tư
+   07/2024/TT-BKHĐT", trong khi corpus của dự án này đã tự fetch và xác minh trực tiếp (Mục 10)
+   rằng văn bản đúng, hiện hành là **Thông tư 01/2024/TT-BKHĐT và 22/2024/TT-BKHĐT** — chính
+   xác kiểu lỗi "hallucination số hiệu văn bản" mà hệ thống RAG này được thiết kế để tránh.
+2. **Số liệu RAGAS "0.91-0.95"** trình bày như đã đo nhưng không kèm cỡ mẫu/script/dữ liệu test
+   nào — khác hẳn số liệu thật của dự án này (46 câu retrieval, 8 câu generation, trace được
+   qua `reports/*.json`).
+
+**Ý tưởng đã ÁP DỤNG** (có code thật, xem MODEL_CARD.md Mục M5, DATA_CARD.md Mục 12 kết quả
+`--rewrite`, embedding_comparison.json):
+- Chặn tiêu chí hạn chế cạnh tranh ngay từ system prompt sinh (không chỉ M6 rà soát sau).
+- Gửi trọn Điều (parent) thay vì chỉ đoạn Khoản khớp (child) làm ngữ cảnh cho LLM.
+- Query rewriting (HyDE-lite) bằng Claude Haiku trước khi truy hồi ở Mức 1 — code + test đầy
+  đủ, nhưng đo thật (Mục 12.2) cho thấy làm GIẢM chất lượng truy hồi trên tập eval hiện tại,
+  nên **tắt mặc định** (`use_query_rewrite: false`), giữ lại làm tuỳ chọn đã kiểm chứng hoạt
+  động đúng thiết kế thay vì xoá bỏ.
+- Thêm `bge-m3` làm ứng viên embedding thứ 3 (ngữ cảnh dài hơn hẳn 2 model hiện có, nhắm
+  thẳng vào lỗi cắt-âm-thầm-chunk-dài đã tìm thấy ở Mục 12.1) — đo thật (MODEL_CARD.md, bảng
+  so sánh 3 model) cho kết quả TRÁI KỲ VỌNG: giải quyết đúng vấn đề kiến trúc (ngữ cảnh dài,
+  không cần sliding-window) nhưng độ tách biệt không gian embedding lại THẤP NHẤT trong 3
+  model (0.1155, so với 0.1836 của `vi_bi_encoder`) — không đổi model mặc định.
+- Đối chiếu thuật ngữ eval với RAGAS (Mục 14) thay vì đo lại bằng thư viện `ragas`.
+- Metadata filtering theo loại văn bản trước khi search — hạ tầng lọc + bộ phân loại Claude
+  Haiku (`generation/law_classifier.py`) đầy đủ code + test. Đo thật (Mục 12.3) cho kết quả
+  **trái chiều thú vị**: TRẦN lợi ích (oracle, biết trước đáp án) rất lớn (nDCG@5 +17%), nhưng
+  bộ phân loại THẬT lại làm KẾT QUẢ TỆ HƠN KHÔNG LỌC (lọc sai loại bỏ vĩnh viễn văn bản đúng) —
+  nên cũng **tắt mặc định** (`use_law_id_filter: false`) giống query rewrite, nhưng vì lý do
+  khác: ở đây ý tưởng có tiềm năng thật, chỉ là bộ phân loại hiện tại chưa đủ chính xác để
+  khai thác, không phải bản thân ý tưởng sai.
+
+**Ý tưởng CÂN NHẮC RỒI BỎ, kèm lý do:**
+- **Multi-Agent (LangGraph: Planner→Writer→Auditor→Formatter)** — pipeline tuyến tính hiện tại
+  (`orchestrator.py`) đã làm đúng thứ tự retrieve→generate→compliance→export; đóng khung lại
+  thành "agent" không đổi kết quả đo được, chỉ thêm dependency/độ phức tạp.
+- **Agent Planner routing theo loại gói thầu (Xây lắp/Hàng hóa/Dịch vụ/Phi tư vấn)** — đi ngược
+  phạm vi khóa cứng của đề cương môn học (chỉ HSMT phần mềm/CNTT); áp dụng sẽ là vỡ scope.
+- **Đổi sang Qdrant/Milvus** — FAISS in-process hiện tại đủ dùng cho quy mô 684 chunk, không có
+  bằng chứng cần hạ tầng vector DB riêng cho quy mô này.
+- **Docling/Unstructured parser** — `knowledge/legal_fetch.py` đã có parser HTML tuỳ biến theo
+  từng nguồn thật (gxd.vn, luatvietnam.vn), xử lý được các lỗi thật (heading lặp/thiếu) mà một
+  parser tổng quát khó phát hiện; không có bằng chứng cần thay.

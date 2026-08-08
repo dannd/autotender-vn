@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from autotender.config import get_models_settings
 from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
 from autotender.generation.claude_client import is_configured as is_claude_configured
+from autotender.generation.law_classifier import DEFAULT_CLASSIFIER_MODEL, classify_relevant_law_ids
+from autotender.generation.query_rewrite import DEFAULT_REWRITE_MODEL, rewrite_query
 from autotender.models.base import BaseModule, TierUnavailableError
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import QAAnswer, RetrievedChunk
@@ -31,8 +33,11 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_user_prompt(question: str, citations: list[RetrievedChunk]) -> str:
-    context = "\n\n".join(f"[{c.source_doc}]\n{c.text}" for c in citations)
+def _build_user_prompt(question: str, citations: list[RetrievedChunk], retriever: HybridLegalRetriever) -> str:
+    # Gửi TRỌN Điều (không chỉ đoạn Khoản đã khớp truy hồi) làm ngữ cảnh cho Claude — xem
+    # `HybridLegalRetriever.expand_to_parent_article`. Chỉ áp cho ngữ cảnh LLM, không đổi
+    # citation hiển thị UI (vẫn dùng `c.text`/`c.source_doc` gốc, xem `QAAnswer.citations`).
+    context = "\n\n".join(f"[{c.source_doc}]\n{retriever.expand_to_parent_article(c)}" for c in citations)
     return f"Các trích đoạn văn bản pháp luật liên quan:\n\n{context}\n\nCâu hỏi: {question}"
 
 
@@ -49,19 +54,39 @@ class LegalQAModule(BaseModule[QAAnswer]):
     def ask(self, question: str) -> QAAnswer:
         return self.run(question)
 
-    def _retrieve_citations(self, question: str, *, allow_rerank: bool = True) -> list[RetrievedChunk]:
+    def _retrieve_citations(
+        self, question: str, *, allow_rerank: bool = True, law_ids: set[str] | None = None
+    ) -> list[RetrievedChunk]:
         top_k = self._cfg.get("top_k_citations", 5)
         candidate_k = self._cfg.get("candidate_k", 50)
         if allow_rerank and self._cfg.get("use_rerank", True):
-            return self._retriever.retrieve_reranked(question, top_k=top_k, candidate_k=candidate_k)
-        return self._retriever.retrieve(question, top_k=top_k, candidate_k=candidate_k)
+            return self._retriever.retrieve_reranked(question, top_k=top_k, candidate_k=candidate_k, law_ids=law_ids)
+        return self._retriever.retrieve(question, top_k=top_k, candidate_k=candidate_k, law_ids=law_ids)
 
     # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, question: str) -> QAAnswer:
         if not is_claude_configured():
             raise TierUnavailableError("ANTHROPIC_API_KEY chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
 
-        citations = self._retrieve_citations(question)
+        # HyDE-lite: chuẩn hoá thuật ngữ câu hỏi TRƯỚC KHI truy hồi (không đổi câu hỏi hiển
+        # thị/trả lời cho người dùng, chỉ đổi câu dùng để tìm kiếm) — xem
+        # `generation/query_rewrite.py`. Chỉ áp ở Mức 1 (câu hỏi tự do từ người dùng), không
+        # áp cho Mức 2 (`generator.py`, câu truy vấn đã viết sẵn bằng thuật ngữ chuẩn).
+        retrieval_query = question
+        # Mặc định False — đo thật (configs/models.yaml, docs/DATA_CARD.md Mục 12.2) cho
+        # thấy rewrite làm GIẢM chất lượng truy hồi trên tập eval hiện tại.
+        if self._cfg.get("use_query_rewrite", False):
+            retrieval_query = rewrite_query(question, model=self._cfg.get("rewrite_model", DEFAULT_REWRITE_MODEL))
+
+        # Metadata filtering theo loại văn bản — xem generation/law_classifier.py và
+        # docs/DATA_CARD.md Mục 12.3 (đo cả trần lý thuyết lẫn bộ phân loại thật).
+        law_ids = None
+        if self._cfg.get("use_law_id_filter", False):
+            law_ids = classify_relevant_law_ids(
+                question, model=self._cfg.get("classifier_model", DEFAULT_CLASSIFIER_MODEL)
+            )
+
+        citations = self._retrieve_citations(retrieval_query, law_ids=law_ids)
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan.")
 
@@ -69,7 +94,7 @@ class LegalQAModule(BaseModule[QAAnswer]):
         try:
             answer_text = call_claude(
                 system=_SYSTEM_PROMPT,
-                user_prompt=_build_user_prompt(question, citations),
+                user_prompt=_build_user_prompt(question, citations, self._retriever),
                 model=model,
                 max_tokens=self._cfg.get("max_tokens", 1024),
             )

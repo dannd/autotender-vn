@@ -82,6 +82,21 @@ slot-filling, mất căn cứ tham chiếu — minh hoạ vai trò của M4 tron
 **Việc cần làm để có Tier 1 thật:** chạy `notebooks/04_train_generator.ipynb`, đo
 ROUGE-L/BERTScore so với baseline template filling.
 
+**2 nâng cấp thêm cho Tier 1 (Claude), sau khi rà soát đối chiếu với một báo cáo kiến trúc
+RAG nâng cao tham khảo — xem `docs/DATA_CARD.md` Mục 15 để biết ý tưởng nào bị loại và vì
+sao (đa số phần còn lại của báo cáo đó là template chung/số liệu không kiểm chứng được,
+không đáng áp dụng nguyên trạng):**
+1. **Chặn tiêu chí hạn chế cạnh tranh NGAY TỪ PROMPT sinh** (`_SYSTEM_PROMPT`), không chỉ
+   dựa vào M6 rà soát SAU khi đã sinh — phòng thủ 2 lớp: cấm nêu nhãn hiệu/xuất xứ cụ thể,
+   cấm yêu cầu năng lực/doanh thu vượt ngưỡng hợp lý, cấm mô tả thông số "may đo" ngay trong
+   chỉ dẫn hệ thống gửi cho Claude.
+2. **Gửi TRỌN Điều (không chỉ đoạn Khoản đã khớp truy hồi) làm ngữ cảnh cho Claude** —
+   `HybridLegalRetriever.expand_to_parent_article`. Nhiều Điều dài bị chunk theo Khoản
+   (487/684 chunk trong kho tri thức hiện tại, xem `rag/chunker.py`); trước đây Claude chỉ
+   thấy đúng khoản đã khớp, có thể thiếu ngữ cảnh của cả Điều. Chỉ áp cho NGỮ CẢNH gửi LLM —
+   không đổi hành vi retrieval/rerank/citation hiển thị UI hay số liệu Recall@k/MRR/nDCG đã
+   đo (Mục 12 DATA_CARD.md).
+
 ---
 
 ## M6 — Compliance Guard (`models/compliance.py`) — module trọng tâm
@@ -123,7 +138,7 @@ do dữ liệu mất cân bằng nặng giữa lớp OK và các lớp vi phạm
 
 Bảng trên là ablation của bản đồ án solo 7 ngày gốc (Tier 3 rule-based). Bảng ablation
 LLM-only vs RAG **thật** (đo trực tiếp bằng Claude API, faithfulness/completeness) của bản
-redesign RAG+LLM nằm ở `docs/DATA_CARD.md` mục 13.
+redesign RAG+LLM nằm ở `docs/DATA_CARD.md` mục 13 (đối chiếu thuật ngữ với RAGAS ở mục 14).
 
 ---
 
@@ -155,7 +170,7 @@ Theo đúng hướng đề cương mới: "Deep Learning" ở đây thể hiện
 mạng nơ-ron pretrained (embedding, cross-encoder), KHÔNG qua việc tự huấn luyện. Chạy
 `scripts/analyze_embeddings.py` trên 684 chunk của kho tri thức thật (`data/samples/legal_corpus/` —
 Luật + Nghị định 214/2025 + 2 Thông tư + Nghị định 45/2026, xem `docs/DATA_CARD.md` Mục 10),
-so sánh 2 model embedding đã đăng ký (`rag/embedding_models.py`). Số liệu dưới đây đo SAU khi
+so sánh 3 model embedding đã đăng ký (`rag/embedding_models.py`). Số liệu dưới đây đo SAU khi
 sửa lỗi mã hoá phát hiện khi rà soát kiến trúc RAG (`encode_texts`, xem `docs/DATA_CARD.md`
 Mục 12.1, điểm 3): trước đó `SentenceTransformer.encode()` cắt âm thầm 65% chunk (447/684)
 vượt quá `max_seq_length` của model, khiến embedding chỉ phản ánh đoạn đầu văn bản.
@@ -164,6 +179,7 @@ vượt quá `max_seq_length` của model, khiến embedding chỉ phản ánh �
 |---|---|---|---|---|---|
 | `bkai-foundation-models/vietnamese-bi-encoder` | SimCSE fine-tune trên PhoBERT/XLM-R, dữ liệu tiếng Việt | 768 | 0.5320 | 0.3483 | **0.1836** |
 | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Đa ngôn ngữ (50+ ngôn ngữ), MiniLM distill | 384 | 0.7480 | 0.5806 | 0.1674 |
+| `BAAI/bge-m3` | Đa ngôn ngữ, đa hạt (dense/sparse/ColBERT), ngữ cảnh dài (8192 token) | 1024 | 0.7467 | 0.6312 | 0.1155 |
 
 **"Độ tách biệt"** = cosine similarity trung bình giữa các chunk CÙNG một Điều (intra) trừ
 đi similarity trung bình giữa các chunk KHÁC Điều (inter) — không gian biểu diễn "tốt cho
@@ -180,6 +196,24 @@ không gian biểu diễn, không chỉ là thay đổi trung tính. Kết quả
 bảng Recall@k/MRR/nDCG đo trực tiếp qua truy vấn thật (`docs/DATA_CARD.md` Mục 12: dense-only
 MRR/nDCG@5 cải thiện nhẹ sau fix) — nhưng chỉ số SAU rerank lại giảm nhẹ, một phát hiện nuance
 được thảo luận đầy đủ ở Mục 12.1 DATA_CARD.md thay vì bị bỏ qua.
+
+**`bge-m3` — thêm sau, kết quả TRÁI VỚI KỲ VỌNG kiến trúc:** model này hỗ trợ ngữ cảnh tới
+8192 token (so với 256/128 của 2 model trên), nên xử lý TRỌN VẸN mọi chunk trong MỘT lượt
+(không cần sliding-window của `encode_texts`) — về lý thuyết nên loại bỏ hoàn toàn rủi ro cắt
+âm thầm từng là nguyên nhân gốc của bug đã sửa ở trên. Nhưng độ tách biệt đo được
+(**0.1155**) lại THẤP HƠN CẢ 2 model nhỏ hơn — giống `multilingual_minilm`, `bge-m3` cho
+similarity tuyệt đối cao ở cả intra/inter (0.75/0.63, "co cụm"), nhưng khoảng cách tương đối
+giữa 2 nhóm còn hẹp hơn cả `multilingual_minilm`. Diễn giải hợp lý nhất: `bge-m3` là model
+tổng quát đa miền (không fine-tune riêng cho tiếng Việt hay văn bản pháp lý), nên dù giải
+quyết được vấn đề kiến trúc (ngữ cảnh dài), không gian biểu diễn kết quả lại kém phân biệt
+theo chủ đề pháp lý cụ thể hơn model chuyên biệt nhỏ hơn (`vi_bi_encoder`, chỉ 768 chiều).
+**Kết luận: không đổi model embedding mặc định.** Đây là minh chứng thứ 3 trong đồ án (cùng
+Mục 12.2/12.3 DATA_CARD.md) cho nguyên tắc đo thật trước khi kết luận: "giải quyết đúng vấn đề
+kiến trúc đã biết" không tự động đồng nghĩa "cải thiện chất lượng thật" — cần đo trực tiếp
+trên corpus/tác vụ cụ thể thay vì suy luận từ thông số kỹ thuật của model. (Không chạy lại
+Recall@k/MRR/nDCG đầy đủ với `bge-m3` làm FAISS index chính — CPU-only, ~18 phút chỉ để embed
+684 chunk một lần, ước tính vài giờ nếu build lại toàn bộ pipeline eval; độ tách biệt kém hơn
+rõ rệt đã đủ căn cứ không ưu tiên bước đó trong phạm vi đồ án.)
 
 **Trực quan hoá t-SNE/UMAP** (`reports/figures/embedding_{model}_{tsne,umap}.png`, tô màu
 theo văn bản nguồn — Luật vs Nghị định): cả 2 phép chiếu đều cho thấy một khối trung tâm lớn
