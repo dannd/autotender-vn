@@ -25,7 +25,6 @@ def test_end_to_end_generate_chuong_iii_from_sample_khlcnt(monkeypatch):
 
     ner = NERModule()
     fields = ner.extract(khlcnt_text)
-    assert ner.active_tier == 3
     assert any(f.name == "VALUE" for f in fields)
 
     generator = GeneratorModule()

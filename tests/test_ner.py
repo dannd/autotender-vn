@@ -11,11 +11,10 @@ Thời gian thực hiện hợp đồng: 90 ngày
 """
 
 
-def test_ner_tier3_extracts_expected_fields_without_any_checkpoint():
+def test_ner_extracts_expected_fields():
     module = NERModule()
     fields = module.extract(SAMPLE_TEXT)
 
-    assert module.active_tier == 3
     names = {f.name for f in fields}
     assert "VALUE" in names
     assert "FUNDING" in names
@@ -27,7 +26,7 @@ def test_ner_tier3_extracts_expected_fields_without_any_checkpoint():
     assert 0 < value_field.confidence <= 1
 
 
-def test_ner_tier3_does_not_extract_missing_info_placeholder_as_a_value():
+def test_ner_does_not_extract_missing_info_placeholder_as_a_value():
     """Regression: regex DURATION từng khớp nhầm chính placeholder báo thiếu thông tin
     (phát hiện khi đánh giá trên 232 bản ghi thật — xem reports/metrics.json)."""
     text = (

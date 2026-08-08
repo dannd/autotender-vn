@@ -1,10 +1,10 @@
 """Trang 6 — Bảng điều khiển Model (Mục 7) — trang demo trước hội đồng.
 
 Đã cập nhật cho bản redesign RAG+LLM: M4 (Retriever) không còn là `BaseModule` 3-tier
-(là `HybridLegalRetriever`, luôn kết hợp dense+sparse, không có khái niệm "tier") và M5
-(Generator) Tier 1 giờ là Claude API thay vì checkpoint local — bảng dưới tách riêng 2
-module này khỏi nhóm 3-tier cũ (M2/M3/M6) để tránh hiển thị sai/lỗi (`active_tier` không
-tồn tại trên `HybridLegalRetriever`, phát hiện qua lỗi thật khi chạy trang này).
+(là `HybridLegalRetriever`, luôn kết hợp dense+sparse, không có khái niệm "tier"); M2
+(NER)/M6 (Compliance) cũng đã bỏ khung 3-tier (rule-based thuần, Tier 1/2 chưa từng chạy
+thật trong đồ án — xem docs/MODEL_CARD.md); M5 (Generator) Tier 1 giờ là Claude API thay
+vì checkpoint local. Chỉ M5 còn khái niệm "tier" (`active_tier`).
 """
 
 from __future__ import annotations
@@ -27,16 +27,21 @@ init_page("6 — Bảng điều khiển Model")
 orch = get_orchestrator()
 cfg = get_models_settings()
 
-st.subheader("Trạng thái module 3-tier (M2, M6 — kiến trúc cũ, chưa đổi)")
-module_rows = [
-    {"module": "M2 — NER", "tier_hien_tai": orch.ner.active_tier or "-", "checkpoint": cfg.ner.get("tier1_checkpoint")},
-    {"module": "M6 — Compliance", "tier_hien_tai": orch.compliance.active_tier or "-", "checkpoint": cfg.compliance.get("tier1_checkpoint")},
-]
-for row in module_rows:
-    checkpoint_path = resolve_path(row["checkpoint"]) if row["checkpoint"] else None
-    row["checkpoint_ton_tai"] = "✅" if checkpoint_path and checkpoint_path.exists() else "❌ (dùng Tier 3 dự phòng)"
-st.dataframe(pd.DataFrame(module_rows), use_container_width=True)
-st.caption("Tier hiện tại chỉ cập nhật sau khi module đã chạy ít nhất 1 lần trong phiên này (vào trang 2/4 để kích hoạt).")
+st.subheader("M2 — NER & M6 — Compliance (rule-based thuần)")
+st.dataframe(
+    pd.DataFrame(
+        [
+            {"module": "M2 — NER", "phuong_phap": "regex + từ điển từ khoá", "so_nhan": len(cfg.ner.get("labels", []))},
+            {"module": "M6 — Compliance", "phuong_phap": "từ điển nhãn hiệu + regex ngưỡng", "so_nhan": len(cfg.compliance.get("rule_codes", []))},
+        ]
+    ),
+    use_container_width=True,
+)
+st.caption(
+    "Cả 2 module luôn chạy trực tiếp (không có tier dự phòng) — khung 3-tier (checkpoint "
+    "fine-tuned/zero-shot) trước đây chưa từng chạy thật trong đồ án nên đã được bỏ. Số liệu "
+    "đánh giá thật xem bên dưới."
+)
 
 st.divider()
 st.subheader("M4 — Retriever (RAG+LLM redesign)")
@@ -58,20 +63,6 @@ if not is_claude_configured():
     st.info(
         "Chưa cấu hình `ANTHROPIC_API_KEY` — Mức 1/Mức 2 vẫn chạy được nhưng chỉ liệt kê "
         "trích dẫn/template-filling, không có câu trả lời/nội dung tổng hợp bằng Claude."
-    )
-
-st.divider()
-st.subheader("Tải checkpoint (M2/M6)")
-with st.form("download_checkpoint"):
-    c1, c2 = st.columns(2)
-    module_choice = c1.selectbox("Module", options=["ner_phobert", "compliance_xlmr"])
-    url = c2.text_input("URL / Google Drive link")
-    submitted = st.form_submit_button("⬇️ Tải về models/")
-if submitted:
-    st.info(
-        f"Tải thủ công checkpoint cho `{module_choice}` từ `{url or '(chưa nhập URL)'}` và giải nén vào "
-        f"`models/{module_choice}/`. Do giới hạn môi trường demo, việc tải file lớn từ Drive cần thực hiện "
-        "thủ công (gdown/rclone) ngoài ứng dụng — xem README.md mục Cài đặt."
     )
 
 st.divider()

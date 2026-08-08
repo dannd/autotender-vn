@@ -10,7 +10,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import get_orchestrator, get_store, init_page, tier_badge  # noqa: E402
+from common import get_orchestrator, get_store, init_page  # noqa: E402
 
 from autotender.schemas import TenderNotice  # noqa: E402
 
@@ -49,7 +49,7 @@ if raw_text:
 
     with left:
         st.subheader("Văn bản gốc")
-        st.caption(f"Model tier NER: {tier_badge(orch.ner.active_tier)}")
+        st.caption("Trích xuất trường: rule-based (regex + từ điển từ khoá).")
 
         highlighted = raw_text
         for f in sorted(fields, key=lambda x: -(x.char_start or 0)):

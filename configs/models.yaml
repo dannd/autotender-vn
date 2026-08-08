@@ -1,9 +1,9 @@
-# Cấu hình cho từng module ML — cơ chế 3-tier fallback (Mục 2.1)
-# tier_1: checkpoint fine-tuned (models/*), tier_2: pretrained zero/few-shot, tier_3: rule-based
+# Cấu hình cho từng module ML.
+# ner/compliance: rule-based thuần (không có checkpoint/model — xem docs/MODEL_CARD.md
+# về lý do đã bỏ khung 3-tier fine-tuned/zero-shot chưa từng dùng thật).
+# generator/qa: vẫn giữ cơ chế 3-tier, tier 1 = Claude API (đường chính).
 
 ner:
-  tier1_checkpoint: "models/ner_phobert"
-  tier2_model: "xlm-roberta-base"
   labels: ["PACKAGE_NAME", "VALUE", "FUNDING", "METHOD", "CONTRACT_TYPE", "DURATION", "INVESTOR", "LOCATION"]
 
 generator:
@@ -14,8 +14,6 @@ generator:
   sections_supported: ["chuong_III", "chuong_V"]
 
 compliance:
-  tier1_checkpoint: "models/compliance_xlmr"
-  tier2_model: "xlm-roberta-base"
   rule_codes: ["R1", "R2", "R3", "R4", "R5", "OK"]
   brand_dictionary: ["Cisco", "Dell", "HP", "Hewlett Packard", "Samsung", "IBM", "Lenovo", "Intel", "Microsoft", "Apple", "Huawei", "Sony", "Canon", "Epson", "Fujitsu", "Oracle", "SAP"]
   revenue_ratio_threshold: 3.0

@@ -1,8 +1,8 @@
 """Orchestrator — ghép M1 (ingest) -> M2 (NER) -> M4 (RAG) -> M5 (generate) -> M6
 (compliance) thành một luồng xử lý dùng chung cho GUI (Mục 4, Mục 7).
 
-Mỗi bước dùng đúng module 3-tier tương ứng — orchestrator không tự quyết định tier,
-chỉ đọc `active_tier` sau khi module chạy xong để hiển thị badge trên UI.
+M2 (NER) và M6 (Compliance) là rule-based thuần, luôn chạy trực tiếp. Chỉ M5 (Generator)
+còn giữ cơ chế 3-tier (Tier 1 = Claude API), nên chỉ nó mới có `active_tier`.
 
 Không còn bước phân loại loại gói thầu (M3 cũ) — phạm vi hệ thống đã khoá cứng "phần
 mềm/CNTT" theo đề cương RAG+LLM, phân loại tự động không còn ảnh hưởng đến luồng sinh

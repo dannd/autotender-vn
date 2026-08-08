@@ -1,11 +1,13 @@
 # Model Card — AutoTender-VN
 
-Mỗi module ML dùng cơ chế fallback 3 tầng (`autotender/models/base.py::BaseModule`,
-xem Mục 2.1 SPEC). **Trạng thái hiện tại: cả 5 module đang chạy ở Tier 3 (rule-based)**
-vì môi trường phát triển đồ án (laptop cá nhân, không GPU, không truy cập Google Colab)
-không cho phép chạy `notebooks/01-05` để tạo checkpoint Tier 1 thật trong phạm vi 7 ngày.
-Đây là hạn chế đã được lường trước và xử lý đúng theo Degraded Mode — phần mềm vẫn chạy
-được và demo được đầy đủ luồng end-to-end.
+M5 (Generator)/QA (Mức 1) dùng cơ chế fallback 3 tầng (`autotender/models/base.py::BaseModule`,
+xem Mục 2.1 SPEC), Tier 1 = Claude API. M2 (NER) và M6 (Compliance) từng dùng khung tương tự
+(Tier 1 = checkpoint fine-tuned, Tier 2 = zero-shot pretrained) nhưng cả 2 tầng đó **chưa
+từng chạy thật** — môi trường phát triển đồ án (laptop cá nhân, không GPU, không truy cập
+Google Colab) không cho phép tạo checkpoint Tier 1 thật, và Tier 2 luôn rơi về rule-based —
+nên khung 3-tier của 2 module này đã được đơn giản hoá, giữ lại đúng logic rule-based (Tier
+3 cũ) làm hành vi trực tiếp, duy nhất. Đây là hạn chế đã được lường trước và xử lý đúng theo
+Degraded Mode — phần mềm vẫn chạy được và demo được đầy đủ luồng end-to-end.
 
 Số liệu dưới đây là **ảnh chụp cố định** từ lần chạy cuối của `scripts/evaluate.py` — script
 này (cùng `models/classifier.py`, `models/retriever.py`, `scripts/build_index.py` và 2
@@ -18,13 +20,15 @@ cách đánh giá gốc).
 
 ## M2 — NER trích xuất trường (`models/ner.py`)
 
-| Tier | Kiến trúc | Trạng thái |
-|---|---|---|
-| 1 | PhoBERT-base-v2 + token classification head | Chưa có checkpoint (`models/ner_phobert/` trống) |
-| 2 | XLM-R zero-shot (QA-style prompting) | Chưa cài `transformers` trong môi trường demo |
-| 3 | Regex + từ điển từ khoá | **Đang chạy** |
+Rule-based thuần (regex + từ điển từ khoá), luôn chạy trực tiếp. Module này từng có khung
+`BaseModule` 3-tier (Tier 1 = PhoBERT-base-v2 fine-tune, Tier 2 = XLM-R zero-shot QA-style
+prompting) nhưng cả 2 tầng đó **chưa từng chạy thật** trong đồ án (không có checkpoint đã
+train — môi trường không GPU/Colab; Tier 2 còn có lỗi runtime dùng sai tên task pipeline
+của `transformers`) nên khung đó đã được gỡ bỏ khỏi code (giữ nguyên số liệu Tier 3 thật
+bên dưới). Muốn có mô hình fine-tune thật, xem `notebooks/01_train_ner.ipynb` (huấn luyện
+độc lập, chưa nối lại vào `models/ner.py`).
 
-**Metric (Tier 3, distant supervision, 521 bản ghi = 20 tổng hợp + 12 + 489 THẬT — xem
+**Metric (rule-based, distant supervision, 521 bản ghi = 20 tổng hợp + 12 + 489 THẬT — xem
 DATA_CARD.md mục 8, 9):** entity-F1 = 0.956 (micro), per-entity: CONTRACT_TYPE 1.00, DURATION
 0.985, FUNDING 0.936, INVESTOR 0.983, METHOD 0.958, PACKAGE_NAME 0.899, VALUE 1.00.
 
@@ -35,10 +39,6 @@ DURATION khớp nhầm chính placeholder `[CẦN NGƯỜI DÙNG BỔ SUNG...]` 
 là `None` (212/232 bản ghi thật không có trường này) — precision khi đó chỉ 0.138. Đã sửa
 trong `models/ner.py` (bỏ qua match trùng placeholder) — một minh chứng cụ thể cho giá trị của
 việc đánh giá trên dữ liệu thật thay vì chỉ dữ liệu tổng hợp tự nhất quán.
-
-**Việc cần làm để có Tier 1 thật:** chạy `notebooks/01_train_ner.ipynb` trên Colab với
-`data/processed/ner_dataset.jsonl` (đã tự động dùng 232 bản ghi kết hợp) + 200 mẫu gán tay
-làm test set độc lập.
 
 ---
 
@@ -86,11 +86,11 @@ ROUGE-L/BERTScore so với baseline template filling.
 
 ## M6 — Compliance Guard (`models/compliance.py`) — module trọng tâm
 
-| Tier | Kiến trúc | Trạng thái |
-|---|---|---|
-| 1 | Cross-encoder XLM-R fine-tuned, 5 lớp | Chưa có checkpoint |
-| 2 | XLM-R zero-shot classification | Chưa cài `transformers` |
-| 3 | Từ điển nhãn hiệu (17 hãng) + regex ngưỡng bất hợp lý + phát hiện phủ định | **Đang chạy** |
+Rule-based thuần: từ điển nhãn hiệu (17 hãng) + regex ngưỡng bất hợp lý + phát hiện phủ
+định, luôn chạy trực tiếp. Module này từng có khung `BaseModule` 3-tier (Tier 1 =
+cross-encoder XLM-R fine-tuned 5 lớp, Tier 2 = XLM-R zero-shot classification) nhưng cả 2
+tầng đó **chưa từng chạy thật** trong đồ án (không có checkpoint đã train) nên khung đó đã
+được gỡ bỏ khỏi code (giữ nguyên số liệu Tier 3 thật bên dưới).
 
 **Metric (10 câu gán tay, xem giới hạn DATA_CARD.md mục 6):** precision = recall = F1 =
 1.0 trên cả 4 lớp (OK, R1, R2, R3). R4 (số liệu sai lệch KHLCNT) được xử lý riêng trong
@@ -105,10 +105,10 @@ văn bản mô tả nguyên tắc mà nó tham chiếu.
 tiềm ẩn (nhãn hiệu, doanh thu bất hợp lý, thông số may đo) sẽ không được cảnh báo cho
 người dùng nếu thiếu module này.
 
-**Việc cần làm để có Tier 1 thật:** cần dữ liệu gán nhãn quy mô lớn hơn (xem SPEC Mục 14:
-"sinh dữ liệu tổng hợp bằng LLM rồi người kiểm duyệt"), chạy `notebooks/05_train_compliance.ipynb`
-(chưa tạo trong đồ án này — ghi vào hạn chế/future work), dùng focal loss do dữ liệu mất
-cân bằng nặng giữa lớp OK và các lớp vi phạm.
+**Muốn có mô hình fine-tune thật (không thuộc phạm vi đồ án):** cần dữ liệu gán nhãn quy mô
+lớn hơn (xem SPEC Mục 14: "sinh dữ liệu tổng hợp bằng LLM rồi người kiểm duyệt"), notebook
+train tương ứng (`notebooks/05_train_compliance.ipynb`) chưa từng được tạo, dùng focal loss
+do dữ liệu mất cân bằng nặng giữa lớp OK và các lớp vi phạm.
 
 ---
 
