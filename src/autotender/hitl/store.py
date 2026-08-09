@@ -13,7 +13,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from autotender.schemas import ComplianceFlag, HSMTDocument, HSMTSection, RetrievedChunk, TenderNotice
+from autotender.schemas import ComplianceFlag, ExtractedField, HSMTDocument, HSMTSection, RetrievedChunk, TenderNotice
 
 
 def _locked(method):
@@ -37,7 +37,7 @@ def _locked(method):
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
-    doc_id TEXT PRIMARY KEY, package_json TEXT, created_at TEXT, updated_at TEXT
+    doc_id TEXT PRIMARY KEY, package_json TEXT, fields_json TEXT, created_at TEXT, updated_at TEXT
 );
 CREATE TABLE IF NOT EXISTS sections (
     section_id TEXT, doc_id TEXT, title TEXT, generated_text TEXT,
@@ -74,7 +74,16 @@ class HitlStore:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        # `CREATE TABLE IF NOT EXISTS` bỏ qua các DB đã tồn tại từ trước khi có cột
+        # `fields_json` (thêm sau này) — cần ALTER TABLE thủ công để DB cũ (đã có tài liệu)
+        # không bị lỗi "no such column" khi chạy `save_document`/`get_document`.
+        existing_cols = {row["name"] for row in self._conn.execute("PRAGMA table_info(documents)")}
+        if "fields_json" not in existing_cols:
+            self._conn.execute("ALTER TABLE documents ADD COLUMN fields_json TEXT")
 
     def close(self) -> None:
         self._conn.close()
@@ -89,10 +98,17 @@ class HitlStore:
     @_locked
     def save_document(self, doc: HSMTDocument) -> None:
         self._conn.execute(
-            """INSERT INTO documents (doc_id, package_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?)
-               ON CONFLICT(doc_id) DO UPDATE SET package_json=excluded.package_json, updated_at=excluded.updated_at""",
-            (doc.doc_id, doc.package.model_dump_json(), doc.created_at.isoformat(), _now()),
+            """INSERT INTO documents (doc_id, package_json, fields_json, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(doc_id) DO UPDATE SET
+                 package_json=excluded.package_json, fields_json=excluded.fields_json, updated_at=excluded.updated_at""",
+            (
+                doc.doc_id,
+                doc.package.model_dump_json(),
+                json.dumps([f.model_dump() for f in doc.fields], default=str),
+                doc.created_at.isoformat(),
+                _now(),
+            ),
         )
         for section in doc.sections:
             self.upsert_section(doc.doc_id, section, log_edit=False)
@@ -104,10 +120,12 @@ class HitlStore:
         if row is None:
             return None
         package = TenderNotice.model_validate_json(row["package_json"])
+        fields = [ExtractedField.model_validate(f) for f in json.loads(row["fields_json"] or "[]")]
         sections = self.list_sections(doc_id)
         return HSMTDocument(
             doc_id=doc_id,
             package=package,
+            fields=fields,
             sections=sections,
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
