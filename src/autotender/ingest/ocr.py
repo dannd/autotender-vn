@@ -3,6 +3,17 @@
 Tier chính: PaddleOCR (`lang='vi'`). Fallback: VietOCR.
 Nếu cả hai đều không cài được (rủi ro đã biết trên Windows, xem Mục 14 SPEC),
 trả về thông báo rõ ràng thay vì crash toàn bộ pipeline ingest.
+
+Xác nhận thực tế (2026-08-09): PaddleOCR 3.x đã đổi API constructor không tương thích ngược
+(`use_angle_cls`/`show_log` bị loại bỏ) — CỐ Ý CHƯA sửa `_get_paddle_engine()` theo API mới,
+vì đã kiểm chứng dù sửa đúng tham số, bước text-detection vẫn crash thật trên môi trường
+Windows/CPU với lỗi engine oneDNN/PIR (`NotImplementedError:
+ConvertPirAttribute2RuntimeAttribute not support ...`) — sự cố tương thích backend
+PaddlePaddle 3.3 trên máy này, không phải lỗi gọi sai tham số. Sửa constructor chỉ dời điểm
+lỗi từ "khởi tạo" (rẻ, phát hiện ngay, không tải gì) sang "mỗi lần OCR thật" (tốn ~200MB tải
+model PaddleX lần đầu rồi vẫn crash) — tệ hơn hiện trạng. VietOCR là engine THẬT SỰ đang phục
+vụ OCR (đã xác minh chạy đúng trên máy này); PaddleOCR luôn rơi xuống VietOCR ngay ở bước
+khởi tạo, không ảnh hưởng người dùng cuối (chỉ 1 dòng log WARNING).
 """
 
 from __future__ import annotations

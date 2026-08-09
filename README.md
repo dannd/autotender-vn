@@ -64,8 +64,11 @@ thật/template-filling, xem [Degraded Mode](#nguyên-tắc-thiết-kế-bắt-b
 dẫn thô.
 
 **Ghi chú cài đặt khác:**
-- `paddleocr`/`paddlepaddle` (OCR, dùng cho upload KHLCNT dạng scan) có thể không cài
-  được trên một số máy — không sao, hệ thống tự động bỏ qua OCR (xem `ingest/ocr.py`).
+- OCR (dùng cho upload KHLCNT dạng scan, không có text layer): `paddleocr`/`paddlepaddle`
+  là Tier chính nhưng đã xác nhận KHÔNG chạy được (API 3.x đổi không tương thích ngược +
+  lỗi engine oneDNN/PIR trên Windows/CPU, xem chú thích trong `ingest/ocr.py`) — hệ thống
+  tự động rơi xuống `vietocr` (Tier dự phòng, đã xác minh chạy được thật). Nếu cả 2 đều
+  không cài được, hệ thống tự động bỏ qua OCR thay vì crash (xem `ingest/ocr.py`).
 - `weasyprint` cần thư viện hệ thống GTK; nếu thiếu (phổ biến trên Windows), phần mềm
   **tự động fallback sang ReportLab** (xem `export/pdf.py`).
 - `playwright`: sau khi `pip install`, chạy thêm `playwright install chromium` — cần

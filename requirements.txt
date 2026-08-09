@@ -10,11 +10,17 @@
 # dưới đây phụ thuộc) — muốn tái lập tuyệt đối tầng đó thì cần `pip freeze` toàn bộ
 # venv thành 1 lockfile riêng, ngoài phạm vi thay đổi này.
 #
-# 2 gói OCR (paddleocr, paddlepaddle) và pytest-cov giữ nguyên ">=" — KHÔNG được cài trong
-# .venv đã dùng để chạy test suite ở trên (paddleocr/paddlepaddle là fallback OCR tuỳ chọn,
-# xem ingest/ocr.py; pytest-cov không được dùng ở đâu trong pyproject.toml/CI hiện tại) nên
-# không có phiên bản đã-chạy-thật để ghim — ghim bừa 1 số chưa xác minh còn rủi ro hơn để
-# ">=" như cũ.
+# pytest-cov giữ nguyên ">=" — không được dùng ở đâu trong pyproject.toml/CI hiện tại, không
+# có phiên bản đã-chạy-thật để ghim.
+#
+# paddleocr 3.x đã ghim ở đây NHƯNG hiện KHÔNG hoạt động qua code trong ingest/ocr.py: (1)
+# constructor cũ (`use_angle_cls`, `show_log`) đã bị loại khỏi API 3.x — cố tình CHƯA sửa vì
+# (2) dù sửa đúng API mới, bước text-detection vẫn crash thật trên máy Windows/CPU đã xác
+# minh với lỗi engine oneDNN/PIR (`NotImplementedError: ConvertPirAttribute2RuntimeAttribute`)
+# — sự cố tương thích backend PaddlePaddle 3.3, không phải lỗi code gọi sai tham số, sửa
+# constructor sẽ chỉ dời điểm lỗi từ "khởi tạo" (rẻ, phát hiện ngay) sang "mỗi lần OCR thật"
+# (đắt hơn, tải thêm ~200MB model PaddleX trước khi vẫn crash). VietOCR (đã xác minh chạy
+# được thật trên máy này) là engine dự phòng thật sự đang phục vụ OCR — xem ingest/ocr.py.
 
 # --- GUI ---
 streamlit==1.60.0
@@ -28,10 +34,13 @@ playwright==1.62.0
 pymupdf==1.28.0
 python-docx==1.2.0
 
-# --- OCR (optional, Tier fallback for scanned PDFs) — chưa cài trong môi trường đã xác
-# minh, xem ghi chú ở đầu file ---
-paddleocr>=2.7; platform_system != "Darwin"
-paddlepaddle>=2.6; platform_system != "Darwin"
+# --- OCR (optional, Tier fallback for scanned PDFs) — paddleocr/paddlepaddle cài được
+# nhưng không chạy được thật trên máy này (xem ghi chú ở đầu file); vietocr là engine thật
+# đang hoạt động ---
+paddleocr==3.7.0; platform_system != "Darwin"
+paddlepaddle==3.3.1; platform_system != "Darwin"
+vietocr==0.3.13
+torchvision==0.28.0
 
 # --- NLP / ML ---
 torch==2.13.0
@@ -58,7 +67,7 @@ reportlab==5.0.0
 # --- Storage / config ---
 pydantic==2.13.4
 pydantic-settings==2.14.2
-pyyaml==6.0.3
+pyyaml==6.0.2
 
 # --- Data / GUI tables & charts ---
 pandas==3.0.5
