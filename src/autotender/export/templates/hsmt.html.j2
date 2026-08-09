@@ -39,7 +39,7 @@
 <section class="toc">
   <h2>Mục lục</h2>
   <ol>
-    {% for s in doc.sections %}
+    {% for s in ordered_sections %}
     <li>{{ s.section_id }} — {{ s.title }}</li>
     {% endfor %}
   </ol>

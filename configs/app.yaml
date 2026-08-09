@@ -8,9 +8,17 @@ app:
   reports_dir: "reports"
 
 sections_scope:
-  # Phạm vi sinh dự thảo trong 1 tuần (Mục 6, M5): chỉ 2 chương khả thi
+  # Phạm vi sinh dự thảo — trọn bộ 8 chương I-VIII (xem
+  # models/generator.py::SECTION_DEFINITIONS, nguồn thật sự điều khiển phạm vi; danh sách
+  # này chỉ mang tính mô tả/tài liệu, không được code đọc trực tiếp).
+  - chuong_I     # Chỉ dẫn nhà thầu
+  - chuong_II    # Bảng dữ liệu đấu thầu
   - chuong_III   # Tiêu chuẩn đánh giá E-HSDT
+  - chuong_IV    # Biểu mẫu mời thầu và dự thầu
   - chuong_V     # Yêu cầu về kỹ thuật / Phạm vi cung cấp
+  - chuong_VI    # Điều kiện chung của hợp đồng
+  - chuong_VII   # Điều kiện cụ thể của hợp đồng
+  - chuong_VIII  # Biểu mẫu hợp đồng
 
 claude_budget:
   usd_cap_per_process: 5.0

@@ -5,12 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 
 from autotender.hitl.store import HitlStore
-from autotender.schemas import HSMTDocument
+from autotender.models.generator import CHAPTER_TITLES
+from autotender.schemas import HSMTDocument, HSMTSection
 
-_CHAPTER_TITLES = {
-    "chuong_III": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
-    "chuong_V": "Chương V — Yêu cầu về kỹ thuật",
-}
+_CHAPTER_RANK = {chapter: i for i, chapter in enumerate(CHAPTER_TITLES)}
+
+
+def _ordered_sections(sections: list[HSMTSection]) -> list[HSMTSection]:
+    """`sections` sắp theo thứ tự chương CHÍNH THỨC (I→VIII, xem CHAPTER_TITLES), không
+    theo thứ tự sinh/nạp gốc — người dùng có thể sinh Chương V trước Chương I, nhưng tài
+    liệu xuất ra vẫn phải đúng thứ tự chương chuẩn. `sorted` ổn định (stable) nên thứ tự
+    các mục TRONG cùng 1 chương được giữ nguyên."""
+    return sorted(sections, key=lambda s: _CHAPTER_RANK.get(s.section_id.split(".")[0], len(_CHAPTER_RANK)))
 
 
 def export_docx(doc: HSMTDocument, store: HitlStore, output_path: str | Path) -> Path:
@@ -61,18 +67,20 @@ def export_docx(doc: HSMTDocument, store: HitlStore, output_path: str | Path) ->
                 document.add_paragraph(f"{s.section_id} — {s.title} ({s.status})", style="List Bullet")
         document.add_page_break()
 
+    ordered_sections = _ordered_sections(doc.sections)
+
     document.add_heading("Mục lục", level=1)
-    for s in doc.sections:
+    for s in ordered_sections:
         document.add_paragraph(f"{s.section_id} — {s.title}")
     document.add_page_break()
 
     chapters: dict[str, list] = {}
-    for s in doc.sections:
+    for s in ordered_sections:
         chapter = s.section_id.split(".")[0]
         chapters.setdefault(chapter, []).append(s)
 
     for chapter, sections in chapters.items():
-        document.add_heading(_CHAPTER_TITLES.get(chapter, chapter), level=1)
+        document.add_heading(CHAPTER_TITLES.get(chapter, chapter), level=1)
         for s in sections:
             document.add_heading(f"{s.section_id}. {s.title}", level=2)
             document.add_paragraph(s.current_text)

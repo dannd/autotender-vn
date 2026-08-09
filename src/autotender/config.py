@@ -70,7 +70,10 @@ class ClaudeBudgetConfig(BaseModel):
 
 class AppSettings(BaseModel):
     app: AppConfig = AppConfig()
-    sections_scope: list[str] = ["chuong_III", "chuong_V"]
+    sections_scope: list[str] = [
+        "chuong_I", "chuong_II", "chuong_III", "chuong_IV",
+        "chuong_V", "chuong_VI", "chuong_VII", "chuong_VIII",
+    ]
     pdf_export: PdfExportConfig = PdfExportConfig()
     claude_budget: ClaudeBudgetConfig = ClaudeBudgetConfig()
 

@@ -76,20 +76,24 @@ class Orchestrator:
     def generate_all_sections(self, fields: list[ExtractedField]) -> list[HSMTSection]:
         return [self.generate_section(section_id, fields) for section_id in SECTION_DEFINITIONS]
 
-    # -- Mức 2 (đề cương RAG+LLM): soạn trọn Chương III end-to-end -------------
-    def generate_chuong_iii(self, fields: list[ExtractedField]) -> list[HSMTSection]:
-        """Sinh đủ 4 mục của Chương III — Tiêu chuẩn đánh giá E-HSDT (năng lực-kinh nghiệm,
-        kỹ thuật, giá, nhãn hiệu/xuất xứ), mỗi mục kèm trích dẫn + cờ tuân thủ."""
-        section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith("chuong_III.")]
+    # -- Sinh trọn 1 chương (8 chương I-VIII, xem models/generator.py::SECTION_DEFINITIONS) --
+    def generate_chapter(self, chapter_id: str, fields: list[ExtractedField]) -> list[HSMTSection]:
+        """Sinh mọi mục thuộc `chapter_id` (vd "chuong_III"), mỗi mục kèm trích dẫn + cờ
+        tuân thủ. `chapter_id` phải khớp phần trước dấu "." của 1 section_id trong
+        `SECTION_DEFINITIONS` — không kiểm tra tồn tại trước, trả về `[]` nếu không khớp mục
+        nào (vd gõ sai tên chương) thay vì raise, vì đây chỉ là tiện ích lọc, không phải một
+        thao tác bắt buộc phải thành công."""
+        section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith(f"{chapter_id}.")]
         return [self.generate_section(section_id, fields) for section_id in section_ids]
+
+    # -- Alias giữ tương thích ngược (dùng trong tests/, scripts/generate_chuong_iii_demo.py) --
+    def generate_chuong_iii(self, fields: list[ExtractedField]) -> list[HSMTSection]:
+        return self.generate_chapter("chuong_III", fields)
 
     def generate_chuong_v(self, fields: list[ExtractedField]) -> list[HSMTSection]:
-        """Sinh đủ 4 mục của Chương V — Yêu cầu về kỹ thuật (phạm vi cung cấp, thông số kỹ
-        thuật, bảo hành/bảo trì, tiến độ), mỗi mục kèm trích dẫn + cờ tuân thủ."""
-        section_ids = [sid for sid in SECTION_DEFINITIONS if sid.startswith("chuong_V.")]
-        return [self.generate_section(section_id, fields) for section_id in section_ids]
+        return self.generate_chapter("chuong_V", fields)
 
     # -- Cờ R5: kiểm tra đủ thành phần bắt buộc (Điều 26 Khoản 2 NĐ 214/2025/NĐ-CP,
-    # chi tiết hoá Điều 44 Luật Đấu thầu) trong phạm vi Chương III + Chương V --------
+    # chi tiết hoá Điều 44 Luật Đấu thầu) trong phạm vi 8 chương I-VIII --------------
     def check_completeness(self, sections: list[HSMTSection]) -> list[ComplianceFlag]:
         return check_document_completeness(sections)

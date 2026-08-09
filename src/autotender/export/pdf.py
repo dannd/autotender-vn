@@ -13,7 +13,8 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from autotender.hitl.store import HitlStore
-from autotender.schemas import HSMTDocument
+from autotender.models.generator import CHAPTER_TITLES
+from autotender.schemas import HSMTDocument, HSMTSection
 from autotender.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,15 +22,19 @@ logger = get_logger(__name__)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 FONTS_DIR = Path(__file__).parent / "fonts"
 
-_CHAPTER_TITLES = {
-    "chuong_III": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
-    "chuong_V": "Chương V — Yêu cầu về kỹ thuật",
-}
+_CHAPTER_RANK = {chapter: i for i, chapter in enumerate(CHAPTER_TITLES)}
+
+
+def _ordered_sections(sections: list[HSMTSection]) -> list[HSMTSection]:
+    """Sắp theo thứ tự chương CHÍNH THỨC (I→VIII) thay vì thứ tự sinh/nạp gốc — xem
+    `export/docx.py::_ordered_sections` (cùng logic, 2 bản riêng vì docx.py/pdf.py không
+    chia sẻ module chung)."""
+    return sorted(sections, key=lambda s: _CHAPTER_RANK.get(s.section_id.split(".")[0], len(_CHAPTER_RANK)))
 
 
 def _group_by_chapter(doc: HSMTDocument) -> dict[str, list]:
     chapters: dict[str, list] = {}
-    for s in doc.sections:
+    for s in _ordered_sections(doc.sections):
         chapter = s.section_id.split(".")[0]
         chapters.setdefault(chapter, []).append(s)
     return chapters
@@ -47,8 +52,9 @@ def render_html(doc: HSMTDocument, approval_log: list[dict], show_watermark: boo
     return template.render(
         doc=doc,
         css=css,
+        ordered_sections=_ordered_sections(doc.sections),
         chapters=_group_by_chapter(doc),
-        chapter_titles=_CHAPTER_TITLES,
+        chapter_titles=CHAPTER_TITLES,
         approval_log=approval_log,
         approved_count=approved_count,
         total_count=total_count,
@@ -129,13 +135,13 @@ def _export_pdf_reportlab(doc: HSMTDocument, approval_log: list[dict], output_pa
         story.append(PageBreak())
 
     story.append(Paragraph("MỤC LỤC", styles["h2"]))
-    for s in doc.sections:
+    for s in _ordered_sections(doc.sections):
         story.append(Paragraph(f"{s.section_id} — {s.title}", styles["body"]))
     story.append(PageBreak())
 
     chapters = _group_by_chapter(doc)
     for chapter, sections in chapters.items():
-        story.append(Paragraph(_CHAPTER_TITLES.get(chapter, chapter), styles["h2"]))
+        story.append(Paragraph(CHAPTER_TITLES.get(chapter, chapter), styles["h2"]))
         for s in sections:
             story.append(Paragraph(f"{s.section_id}. {s.title}", styles["h3"]))
             story.append(Paragraph(s.current_text.replace("\n", "<br/>"), styles["body"]))

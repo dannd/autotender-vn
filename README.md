@@ -206,7 +206,7 @@ redesign) và [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) (kiến trúc/kết qu�
 
 1. **Thu thập dữ liệu** / 2. **Nạp KHLCNT** — (Phase 1) crawl/upload để lấy trường
    thông tin gói thầu tự động, dùng làm input cho Mức 2.
-3. **Soạn thảo HSMT (Mức 2)** — sinh dự thảo từng mục Chương III/V bằng Claude API+RAG,
+3. **Soạn thảo HSMT (Mức 2/3)** — sinh dự thảo trọn bộ 8 chương I-VIII bằng Claude API+RAG,
    sửa trực tiếp, phê duyệt/từ chối, kiểm tra đủ thành phần (R5).
 4. **Kiểm tra tuân thủ** — rà soát cờ R1-R5.
 5. **Xuất và In** — xuất PDF/DOCX.

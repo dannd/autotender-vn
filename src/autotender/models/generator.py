@@ -1,4 +1,4 @@
-"""M5 — Sinh dự thảo Chương III và Chương V của E-HSMT (Mức 2, đề cương RAG+LLM).
+"""M5 — Sinh dự thảo trọn bộ E-HSMT (8 chương I-VIII, Mức 2, đề cương RAG+LLM).
 
 Tier 1: Claude API (LLM có sẵn, KHÔNG tự train — đúng hướng redesign) + ngữ cảnh RAG
         (hybrid retrieval, `rag/hybrid_retriever.py`) — đường CHÍNH.
@@ -30,7 +30,54 @@ from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import ComplianceFlag, ExtractedField, RetrievedChunk
 from autotender.utils.vn_text import format_vn_number
 
+# Thứ tự các chương trong dict này LÀ thứ tự hiển thị/xuất bản chính thức (I→VIII) — xem
+# `CHAPTER_TITLES` bên dưới (suy ra từ dict này, giữ thứ tự xuất hiện đầu tiên của mỗi
+# chương). Ánh xạ 8 chương với Điều 26 Khoản 2 Nghị định 214/2025/NĐ-CP (a-g, xem
+# models/compliance.py::REQUIRED_HSMT_COMPONENTS) — điểm g "hồ sơ, bản vẽ khác (nếu có)"
+# không map 1-1 với 1 chương chuẩn nào nên không có mục riêng.
 SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
+    # Chương I — Chỉ dẫn nhà thầu (CDNT): Điều 26 Khoản 2 điểm a.
+    "chuong_I.muc_1": {
+        "chapter": "Chương I — Chỉ dẫn nhà thầu",
+        "title": "Quy định chung",
+        "query": "phạm vi áp dụng nguồn vốn tư cách hợp lệ của nhà thầu",
+    },
+    "chuong_I.muc_2": {
+        "chapter": "Chương I — Chỉ dẫn nhà thầu",
+        "title": "Chuẩn bị hồ sơ dự thầu",
+        "query": "chuẩn bị hồ sơ dự thầu đơn dự thầu bảo đảm dự thầu hiệu lực hồ sơ dự thầu",
+    },
+    "chuong_I.muc_3": {
+        "chapter": "Chương I — Chỉ dẫn nhà thầu",
+        "title": "Nộp, mở và đánh giá hồ sơ dự thầu",
+        "query": "nộp mở đánh giá hồ sơ dự thầu tính hợp lệ hồ sơ dự thầu",
+    },
+    "chuong_I.muc_4": {
+        "chapter": "Chương I — Chỉ dẫn nhà thầu",
+        "title": "Thương thảo, hoàn thiện và ký kết hợp đồng",
+        "query": "thương thảo hợp đồng hoàn thiện ký kết hợp đồng điều kiện ký kết",
+    },
+    # Chương II — Bảng dữ liệu đấu thầu (BDL): số liệu cụ thể tương ứng Chương I — Điều 26
+    # Khoản 2 điểm b. Bản chất là bảng tham số, không phải văn xuôi — xem `hint`.
+    "chuong_II.muc_1": {
+        "chapter": "Chương II — Bảng dữ liệu đấu thầu",
+        "title": "Thông tin chung về gói thầu",
+        "query": "tên gói thầu nguồn vốn hình thức lựa chọn nhà thầu phương thức đấu thầu",
+        "hint": (
+            "Trình bày dạng danh sách các mục dữ liệu — mỗi dòng là 1 mục tương ứng nội dung "
+            "đã nêu ở Chương I (\"Tên mục dữ liệu: giá trị áp dụng cho gói thầu này\"), lấy "
+            "giá trị từ trường thông tin gói thầu đã cho, KHÔNG viết văn xuôi diễn giải."
+        ),
+    },
+    "chuong_II.muc_2": {
+        "chapter": "Chương II — Bảng dữ liệu đấu thầu",
+        "title": "Bảo đảm dự thầu, bảo đảm thực hiện hợp đồng và tiến độ đấu thầu",
+        "query": "giá trị bảo đảm dự thầu bảo đảm thực hiện hợp đồng thời hạn hiệu lực",
+        "hint": (
+            "Trình bày dạng danh sách các mục dữ liệu (giá trị bảo đảm dự thầu, bảo đảm thực "
+            "hiện hợp đồng, thời hạn hiệu lực hồ sơ dự thầu...), KHÔNG viết văn xuôi diễn giải."
+        ),
+    },
     "chuong_III.muc_1": {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
         "title": "Tiêu chuẩn đánh giá về năng lực và kinh nghiệm",
@@ -50,6 +97,27 @@ SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
         "title": "Yêu cầu về nhãn hiệu, xuất xứ hàng hóa",
         "query": "nhãn hiệu xuất xứ hàng hóa tương đương",
+    },
+    # Chương IV — Biểu mẫu mời thầu và dự thầu: mẫu để NHÀ THẦU điền khi nộp E-HSDT, KHÔNG
+    # phải nội dung do bên mời thầu tự thuật — Điều 26 Khoản 2 điểm d. Xem `hint`.
+    "chuong_IV.muc_1": {
+        "chapter": "Chương IV — Biểu mẫu mời thầu và dự thầu",
+        "title": "Mẫu đơn dự thầu và giấy uỷ quyền",
+        "query": "đơn dự thầu đại diện hợp pháp ký tên đóng dấu giấy uỷ quyền",
+        "hint": (
+            "Soạn dưới dạng MẪU BIỂU để nhà thầu điền khi nộp hồ sơ dự thầu (không phải nội "
+            "dung do bên mời thầu tự thuật) — dùng chỗ trống dạng \"[TÊN NHÀ THẦU]\", "
+            "\"[NGÀY KÝ]\" cho thông tin chỉ nhà thầu mới biết, KHÔNG tự bịa tên nhà thầu cụ thể."
+        ),
+    },
+    "chuong_IV.muc_2": {
+        "chapter": "Chương IV — Biểu mẫu mời thầu và dự thầu",
+        "title": "Mẫu bảo lãnh dự thầu và cam kết của nhà thầu",
+        "query": "bảo đảm dự thầu thư bảo lãnh giấy chứng nhận bảo hiểm bảo lãnh",
+        "hint": (
+            "Soạn dưới dạng MẪU BIỂU để nhà thầu/tổ chức tín dụng điền — dùng chỗ trống dạng "
+            "\"[TÊN NHÀ THẦU]\", \"[TÊN NGÂN HÀNG]\" cho thông tin chưa biết trước, KHÔNG tự bịa."
+        ),
     },
     "chuong_V.muc_1": {
         "chapter": "Chương V — Yêu cầu về kỹ thuật",
@@ -71,6 +139,55 @@ SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
         "title": "Yêu cầu về tiến độ thực hiện",
         "query": "tiến độ thực hiện hợp đồng mốc bàn giao",
     },
+    # Chương VI — Điều kiện chung của hợp đồng (ĐKC): quy định chung, không phụ thuộc đặc
+    # thù từng gói thầu — Điều 26 Khoản 2 điểm e.
+    "chuong_VI.muc_1": {
+        "chapter": "Chương VI — Điều kiện chung của hợp đồng",
+        "title": "Định nghĩa, phạm vi và loại hợp đồng",
+        "query": "loại hợp đồng hồ sơ hợp đồng định nghĩa giải thích từ ngữ",
+    },
+    "chuong_VI.muc_2": {
+        "chapter": "Chương VI — Điều kiện chung của hợp đồng",
+        "title": "Quyền và nghĩa vụ của các bên",
+        "query": "quyền nghĩa vụ chủ đầu tư nhà thầu nguyên tắc thực hiện hợp đồng",
+    },
+    "chuong_VI.muc_3": {
+        "chapter": "Chương VI — Điều kiện chung của hợp đồng",
+        "title": "Sửa đổi, thanh lý hợp đồng và xử lý vi phạm",
+        "query": "sửa đổi hợp đồng thanh lý hợp đồng xử lý vi phạm",
+    },
+    # Chương VII — Điều kiện cụ thể của hợp đồng (ĐKCT): TUỲ BIẾN theo từng gói thầu (cùng
+    # tinh thần Chương III/V — cần phán đoán, không phải boilerplate thuần như Chương VI).
+    "chuong_VII.muc_1": {
+        "chapter": "Chương VII — Điều kiện cụ thể của hợp đồng",
+        "title": "Điều khoản cụ thể về giá, thanh toán và tiến độ",
+        "query": "đồng tiền thanh toán tạm ứng thanh toán hợp đồng điều chỉnh giá",
+    },
+    "chuong_VII.muc_2": {
+        "chapter": "Chương VII — Điều kiện cụ thể của hợp đồng",
+        "title": "Điều khoản cụ thể về bảo hành, bảo trì và nghiệm thu",
+        "query": "bảo hành bảo trì nghiệm thu chất lượng hàng hóa dịch vụ",
+    },
+    # Chương VIII — Biểu mẫu hợp đồng: mẫu để ký với NHÀ THẦU TRÚNG THẦU, KHÔNG phải nội
+    # dung do bên mời thầu tự thuật — Điều 26 Khoản 2 điểm e. Xem `hint`.
+    "chuong_VIII.muc_1": {
+        "chapter": "Chương VIII — Biểu mẫu hợp đồng",
+        "title": "Mẫu hợp đồng và phụ lục hợp đồng",
+        "query": "hợp đồng đối với nhà thầu được lựa chọn nội dung hợp đồng ký kết",
+        "hint": (
+            "Soạn dưới dạng MẪU HỢP ĐỒNG (điều khoản khung) để điền khi ký với nhà thầu trúng "
+            "thầu — dùng chỗ trống dạng \"[TÊN NHÀ THẦU TRÚNG THẦU]\", \"[NGÀY KÝ HỢP ĐỒNG]\" "
+            "cho thông tin chỉ có sau khi có kết quả lựa chọn nhà thầu, KHÔNG tự bịa."
+        ),
+    },
+}
+
+# Tiêu đề hiển thị mỗi chương, suy ra từ SECTION_DEFINITIONS (1 nguồn duy nhất — trước đây
+# `export/docx.py` và `export/pdf.py` mỗi nơi tự giữ 1 bản `_CHAPTER_TITLES` riêng, dễ lệch
+# nhau khi thêm chương mới). Thứ tự dict = thứ tự xuất hiện đầu tiên của mỗi chương trong
+# SECTION_DEFINITIONS ở trên = thứ tự hiển thị/xuất bản chính thức (I→VIII).
+CHAPTER_TITLES: dict[str, str] = {
+    sid.split(".")[0]: meta["chapter"] for sid, meta in SECTION_DEFINITIONS.items()
 }
 
 _PLACEHOLDER = "[CẦN NGƯỜI DÙNG BỔ SUNG: {desc}]"
@@ -191,7 +308,7 @@ class GeneratorModule(BaseModule[GeneratedSection]):
 
     def generate_section(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
         if section_id not in SECTION_DEFINITIONS:
-            raise ValueError(f"Section '{section_id}' nằm ngoài phạm vi sinh của M5 (chỉ chuong_III/V).")
+            raise ValueError(f"Section '{section_id}' không tồn tại trong SECTION_DEFINITIONS.")
         result = self.run(section_id, fields)
         # Chỉ verify phần văn bản KHÔNG PHẢI trích dẫn — số liệu trong đoạn trích dẫn đã có
         # citation đi kèm (truy vết được nguồn), không phải model tự bịa. Bản Tier 3 chèn
@@ -277,9 +394,12 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         context_str = "\n\n".join(
             f"[{c.source_doc}]\n{retriever.expand_to_parent_article(c)}" for c in citations
         )
+        hint = definition.get("hint")
+        hint_str = f"\n\nGợi ý trình bày riêng cho mục này: {hint}" if hint else ""
         return (
             f"Hãy soạn nội dung mục \"{definition['title']}\" thuộc {definition['chapter']}.\n\n"
             f"Trường thông tin gói thầu (đã trích xuất từ KHLCNT):\n{fields_str}\n\n"
-            f"Trích đoạn văn bản pháp luật liên quan:\n\n{context_str}\n\n"
+            f"Trích đoạn văn bản pháp luật liên quan:\n\n{context_str}"
+            f"{hint_str}\n\n"
             f"Nội dung mục cần soạn (chỉ trả về nội dung, không thêm tiêu đề mục lặp lại):"
         )

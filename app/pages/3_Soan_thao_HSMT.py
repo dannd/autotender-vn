@@ -1,4 +1,4 @@
-"""Trang 3 — Soạn thảo HSMT (Mức 2, đề cương RAG+LLM: soạn từng mục Chương III/V bằng
+"""Trang 3 — Soạn thảo HSMT (Mức 2, đề cương RAG+LLM: soạn trọn bộ 8 chương I-VIII bằng
 Claude API + RAG, có trích dẫn + cờ tuân thủ)."""
 
 from __future__ import annotations
@@ -36,10 +36,15 @@ doc = store.get_document(selected_doc_id)
 
 if not doc.sections:
     st.warning("Tài liệu chưa có mục nào được sinh.")
-    if st.button("🪄 Sinh toàn bộ (Chương III + Chương V)", type="primary"):
-        progress = st.progress(0, text="Đang sinh...")
-        from autotender.models.generator import SECTION_DEFINITIONS
+    from autotender.models.generator import SECTION_DEFINITIONS
 
+    st.caption(
+        f"Sinh trọn bộ {len(SECTION_DEFINITIONS)} mục (8 chương I-VIII) — mỗi mục là 1 lượt "
+        "gọi Claude API, có thể mất vài phút và tính vào trần ngân sách (xem Trang 6 — Bảng "
+        "điều khiển)."
+    )
+    if st.button("🪄 Sinh toàn bộ HSMT", type="primary"):
+        progress = st.progress(0, text="Đang sinh...")
         total = len(SECTION_DEFINITIONS)
         for i, section_id in enumerate(SECTION_DEFINITIONS):
             section = orch.generate_section(section_id, doc.fields)
@@ -56,13 +61,20 @@ with left:
     st.caption(f"Tiến độ: {approved}/{total} mục")
     st.progress(approved / total if total else 0)
 
+    from autotender.models.generator import CHAPTER_TITLES
+
     chapters: dict[str, list] = {}
     for s in doc.sections:
         chapter = s.section_id.split(".")[0]
         chapters.setdefault(chapter, []).append(s)
 
     selected_section_id = st.session_state.get("selected_section_id", doc.sections[0].section_id)
-    for chapter, sections in chapters.items():
+    # Duyệt theo thứ tự chương CHÍNH THỨC (I→VIII, xem CHAPTER_TITLES) — không theo thứ tự
+    # sinh/nạp gốc, có thể lệch nếu người dùng sinh Chương V trước Chương I.
+    for chapter in CHAPTER_TITLES:
+        sections = chapters.get(chapter)
+        if not sections:
+            continue
         st.markdown(f"**{chapter}**")
         for s in sections:
             label = f"{status_icon(s.status)} {s.title}"
@@ -73,7 +85,7 @@ with left:
     with st.expander("🚩 Kiểm tra đủ thành phần (R5)"):
         r5_flags = orch.check_completeness(doc.sections)
         if not r5_flags:
-            st.success("Đủ thành phần bắt buộc (Chương III + Chương V) theo Điều 26 Khoản 2 NĐ 214/2025/NĐ-CP.")
+            st.success("Đủ thành phần bắt buộc (8 chương I-VIII) theo Điều 26 Khoản 2 NĐ 214/2025/NĐ-CP.")
         else:
             for f in r5_flags:
                 st.markdown(f"{severity_icon(f.severity)} {f.explanation}")

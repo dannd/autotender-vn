@@ -1,3 +1,4 @@
+from autotender.models.generator import SECTION_DEFINITIONS
 from autotender.pipeline.orchestrator import Orchestrator
 from autotender.schemas import TenderNotice
 
@@ -31,7 +32,7 @@ def test_orchestrator_full_flow_from_text_to_generated_sections(monkeypatch):
     assert len(section.citations) > 0
 
     all_sections = orch.generate_all_sections(fields)
-    assert len(all_sections) == 8
+    assert len(all_sections) == len(SECTION_DEFINITIONS)
 
     chuong_iii_sections = orch.generate_chuong_iii(fields)
     assert len(chuong_iii_sections) == 4
@@ -43,11 +44,11 @@ def test_orchestrator_full_flow_from_text_to_generated_sections(monkeypatch):
     assert len(chuong_v_sections) == 4
     assert all(s.section_id.startswith("chuong_V.") for s in chuong_v_sections)
 
-    # Chỉ soạn Chương III (thiếu Chương V) -> phải bị gắn cờ R5 cho 4 mục Chương V còn thiếu
+    # Chỉ soạn Chương III (thiếu mọi chương khác) -> phải bị gắn cờ R5 cho từng mục còn thiếu
     incomplete_flags = orch.check_completeness(chuong_iii_sections)
-    assert len(incomplete_flags) == 4
+    assert len(incomplete_flags) == len(SECTION_DEFINITIONS) - len(chuong_iii_sections)
     assert all(f.rule_code == "R5" for f in incomplete_flags)
 
-    # Soạn đủ cả Chương III + Chương V -> không còn cờ R5 nào
-    complete_flags = orch.check_completeness(chuong_iii_sections + chuong_v_sections)
+    # Soạn đủ cả 8 chương (đã sinh ở all_sections) -> không còn cờ R5 nào
+    complete_flags = orch.check_completeness(all_sections)
     assert complete_flags == []

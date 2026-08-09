@@ -103,14 +103,28 @@ _PLACEHOLDER_MARKER = "[CẦN NGƯỜI DÙNG BỔ SUNG"
 # nằm ở Điều 26 Khoản 2 Nghị định 214/2025/NĐ-CP (gói hàng hóa), liệt kê đủ 7 thành phần
 # a-g. Đây là căn cứ ĐÚNG với luật hiện hành — không dùng lại mô tả "7 thành phần Điều 44"
 # cũ trong đề cương gốc, vốn dựa trên NĐ 24/2024/NĐ-CP đã hết hiệu lực (xem docs/DATA_CARD.md
-# Mục 10). Chỉ liệt kê phần trong PHẠM VI hệ thống hỗ trợ soạn (Chương III + Chương V —
-# xem Mục "Việc KHÔNG làm" trong kế hoạch: không sinh trọn bộ HSMT gồm cả Chương I/II/IV/VI).
+# Mục 10). Khớp với `models/generator.py::SECTION_DEFINITIONS` (8 chương I-VIII) — điểm g
+# "hồ sơ, bản vẽ khác (nếu có)" không map 1-1 với 1 chương chuẩn nên không có mục riêng.
 REQUIRED_HSMT_COMPONENTS: dict[str, dict[str, str]] = {
+    "chuong_I": {
+        "muc_1": "Quy định chung — Điều 26 Khoản 2 điểm a, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Chuẩn bị hồ sơ dự thầu — Điều 26 Khoản 2 điểm a, Nghị định 214/2025/NĐ-CP",
+        "muc_3": "Nộp, mở và đánh giá hồ sơ dự thầu — Điều 26 Khoản 2 điểm a, Nghị định 214/2025/NĐ-CP",
+        "muc_4": "Thương thảo, hoàn thiện và ký kết hợp đồng — Điều 26 Khoản 2 điểm a, Nghị định 214/2025/NĐ-CP",
+    },
+    "chuong_II": {
+        "muc_1": "Thông tin chung về gói thầu — Điều 26 Khoản 2 điểm b, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Bảo đảm dự thầu, bảo đảm thực hiện hợp đồng và tiến độ đấu thầu — Điều 26 Khoản 2 điểm b, Nghị định 214/2025/NĐ-CP",
+    },
     "chuong_III": {
         "muc_1": "Tiêu chuẩn đánh giá về năng lực, kinh nghiệm — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
         "muc_2": "Tiêu chuẩn đánh giá về kỹ thuật — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
         "muc_3": "Tiêu chuẩn đánh giá về tài chính/giá — Điều 26 Khoản 2 điểm c, Nghị định 214/2025/NĐ-CP",
         "muc_4": "Quy định về nhãn hiệu, xuất xứ hàng hóa — Điều 26 Khoản 9, Nghị định 214/2025/NĐ-CP",
+    },
+    "chuong_IV": {
+        "muc_1": "Mẫu đơn dự thầu và giấy uỷ quyền — Điều 26 Khoản 2 điểm d, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Mẫu bảo lãnh dự thầu và cam kết của nhà thầu — Điều 26 Khoản 2 điểm d, Nghị định 214/2025/NĐ-CP",
     },
     "chuong_V": {
         "muc_1": "Phạm vi cung cấp — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
@@ -118,13 +132,25 @@ REQUIRED_HSMT_COMPONENTS: dict[str, dict[str, str]] = {
         "muc_3": "Yêu cầu về bảo hành, bảo trì — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
         "muc_4": "Yêu cầu về tiến độ thực hiện — Điều 26 Khoản 2 điểm đ, Nghị định 214/2025/NĐ-CP",
     },
+    "chuong_VI": {
+        "muc_1": "Định nghĩa, phạm vi và loại hợp đồng — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Quyền và nghĩa vụ của các bên — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+        "muc_3": "Sửa đổi, thanh lý hợp đồng và xử lý vi phạm — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+    },
+    "chuong_VII": {
+        "muc_1": "Điều khoản cụ thể về giá, thanh toán và tiến độ — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+        "muc_2": "Điều khoản cụ thể về bảo hành, bảo trì và nghiệm thu — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+    },
+    "chuong_VIII": {
+        "muc_1": "Mẫu hợp đồng và phụ lục hợp đồng — Điều 26 Khoản 2 điểm e, Nghị định 214/2025/NĐ-CP",
+    },
 }
 
 
 def check_document_completeness(sections: list[HSMTSection]) -> list[ComplianceFlag]:
-    """Kiểm tra đủ thành phần bắt buộc (trong phạm vi Chương III + Chương V mà hệ thống hỗ
-    trợ soạn) theo Điều 26 Khoản 2 Nghị định 214/2025/NĐ-CP — bản chi tiết hoá hiện hành của
-    Điều 44 Luật Đấu thầu. Đây là kiểm tra CẤP TÀI LIỆU (mục nào đã/chưa soạn), khác với
+    """Kiểm tra đủ thành phần bắt buộc (8 chương I-VIII hệ thống hỗ trợ soạn) theo Điều 26
+    Khoản 2 Nghị định 214/2025/NĐ-CP — bản chi tiết hoá hiện hành của Điều 44 Luật Đấu thầu.
+    Đây là kiểm tra CẤP TÀI LIỆU (mục nào đã/chưa soạn), khác với
     `check_text` (kiểm tra CẤP CÂU, R1-R3) — luôn chạy được, không qua model, không phải
     Tier 1/2/3 vì bản chất là đối chiếu danh sách, không phải suy luận.
     """

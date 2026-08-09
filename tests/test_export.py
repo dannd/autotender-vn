@@ -111,6 +111,56 @@ def test_build_print_html_escapes_closing_script_tag():
     assert "</script><script>alert(1)</script>" not in html_snippet
 
 
+def test_render_html_orders_chapters_canonically_regardless_of_insertion_order(tmp_path):
+    """Hồi quy: trước khi sinh trọn 8 chương, mục lục/thân tài liệu duyệt theo thứ tự
+    `doc.sections` (thứ tự sinh/nạp) — nếu người dùng sinh Chương V trước Chương I, tài
+    liệu xuất ra sẽ hiện Chương V trước Chương I, sai thứ tự chuẩn I→VIII."""
+    now = datetime.now()
+    package = TenderNotice(tbmt_id="IB1", package_name="Test", investor="X", source_url="https://x")
+    sections = [
+        HSMTSection(
+            section_id="chuong_V.muc_1", title="Phạm vi cung cấp", generated_text="NOI_DUNG_CHUONG_V",
+            status="draft", model_tier=3, generated_at=now,
+        ),
+        HSMTSection(
+            section_id="chuong_I.muc_1", title="Quy định chung", generated_text="NOI_DUNG_CHUONG_I",
+            status="draft", model_tier=3, generated_at=now,
+        ),
+    ]
+    doc = HSMTDocument(doc_id="doc_order_test", package=package, sections=sections, created_at=now, updated_at=now)
+    store = _make_store(tmp_path, doc)
+    html = render_html(doc, store.get_approval_log(doc.doc_id))
+
+    assert html.index("NOI_DUNG_CHUONG_I") < html.index("NOI_DUNG_CHUONG_V")
+    store.close()
+
+
+def test_export_docx_orders_chapters_canonically_regardless_of_insertion_order(tmp_path):
+    import docx
+
+    now = datetime.now()
+    package = TenderNotice(tbmt_id="IB1", package_name="Test", investor="X", source_url="https://x")
+    sections = [
+        HSMTSection(
+            section_id="chuong_V.muc_1", title="Phạm vi cung cấp", generated_text="NOI_DUNG_CHUONG_V",
+            status="draft", model_tier=3, generated_at=now,
+        ),
+        HSMTSection(
+            section_id="chuong_I.muc_1", title="Quy định chung", generated_text="NOI_DUNG_CHUONG_I",
+            status="draft", model_tier=3, generated_at=now,
+        ),
+    ]
+    doc = HSMTDocument(doc_id="doc_order_test", package=package, sections=sections, created_at=now, updated_at=now)
+    store = _make_store(tmp_path, doc)
+    out_path = tmp_path / "order_test.docx"
+
+    export_docx(doc, store, out_path)
+
+    full_text = "\n".join(p.text for p in docx.Document(str(out_path)).paragraphs)
+    assert full_text.index("NOI_DUNG_CHUONG_I") < full_text.index("NOI_DUNG_CHUONG_V")
+    store.close()
+
+
 def test_export_pdf_renders_vietnamese_diacritics_correctly(tmp_path):
     """Test bắt buộc theo Mục 8 SPEC: chuỗi tiếng Việt phải hiển thị đúng 100% dấu."""
     import fitz

@@ -15,9 +15,9 @@ init_page("AutoTender-VN")
 st.markdown(
     "Phần mềm hỗ trợ **soạn thảo Hồ sơ mời thầu (E-HSMT) gói phần mềm/CNTT** bằng RAG + "
     "Claude API, dựa trên kho tri thức luật đấu thầu thật (Luật 22/2023/QH15, Nghị định "
-    "214/2025/NĐ-CP). 3 mức: **Mức 1** Hỏi-đáp có trích dẫn → **Mức 2** soạn từng mục Chương "
-    "III/V → **Mức 3** ghép bản nháp. Có cơ chế dự phòng (template, không LLM) để luôn chạy "
-    "được kể cả khi chưa cấu hình API key."
+    "214/2025/NĐ-CP). 3 mức: **Mức 1** Hỏi-đáp có trích dẫn → **Mức 2** soạn từng mục → "
+    "**Mức 3** ghép trọn bộ HSMT (8 chương I-VIII) + xuất file. Có cơ chế dự phòng (template, "
+    "không LLM) để luôn chạy được kể cả khi chưa cấu hình API key."
 )
 
 st.warning(
@@ -29,7 +29,7 @@ st.warning(
 st.subheader("Luồng làm việc")
 steps = [
     ("💬", "Hỏi-đáp", "Mức 1", "Hỏi tự do, trả lời có trích dẫn luật thật"),
-    ("🧾", "Soạn thảo HSMT", "Mức 2", "Sinh, sửa, phê duyệt từng mục Chương III/V"),
+    ("🧾", "Soạn thảo HSMT", "Mức 2/3", "Sinh, sửa, phê duyệt từng mục — trọn bộ 8 chương I-VIII"),
     ("✅", "Kiểm tra tuân thủ", "", "Rà soát cờ R1-R5 (vi phạm + thiếu thành phần)"),
     ("📈", "Đánh giá", "", "Bảng ablation retrieval/generation + phân tích embedding"),
 ]

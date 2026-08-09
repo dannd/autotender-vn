@@ -3,7 +3,14 @@ import json
 import pytest
 
 from autotender.models import generator as generator_module
-from autotender.models.generator import GeneratorModule, _strip_citation_references, verify_numeric_consistency
+from autotender.models.compliance import REQUIRED_HSMT_COMPONENTS
+from autotender.models.generator import (
+    CHAPTER_TITLES,
+    SECTION_DEFINITIONS,
+    GeneratorModule,
+    _strip_citation_references,
+    verify_numeric_consistency,
+)
 from autotender.schemas import ExtractedField
 
 
@@ -28,10 +35,30 @@ def test_generator_tier3_fills_slots_without_any_checkpoint(monkeypatch):
     assert len(result.citations) > 0
 
 
+def test_section_definitions_cover_all_8_chapters_in_order():
+    """Đăng ký ban đầu chỉ gồm Chương III + Chương V (8 mục) — sau khi mở rộng sinh trọn bộ
+    HSMT phải đủ 8 chương I-VIII, đúng thứ tự hiển thị/xuất bản chính thức."""
+    assert list(CHAPTER_TITLES.keys()) == [
+        "chuong_I", "chuong_II", "chuong_III", "chuong_IV",
+        "chuong_V", "chuong_VI", "chuong_VII", "chuong_VIII",
+    ]
+    chapters_present = {sid.split(".")[0] for sid in SECTION_DEFINITIONS}
+    assert chapters_present == set(CHAPTER_TITLES)
+
+
+def test_section_definitions_match_compliance_required_components():
+    """`SECTION_DEFINITIONS` (models/generator.py) và `REQUIRED_HSMT_COMPONENTS`
+    (models/compliance.py) phải luôn khớp 1-1 — 2 registry riêng, dễ lệch nhau khi thêm/sửa
+    1 chương mà quên cập nhật nơi còn lại (cờ R5 sẽ báo sai nếu lệch)."""
+    generator_ids = set(SECTION_DEFINITIONS)
+    compliance_ids = {f"{ch}.{muc}" for ch, mucs in REQUIRED_HSMT_COMPONENTS.items() for muc in mucs}
+    assert generator_ids == compliance_ids
+
+
 def test_generator_rejects_out_of_scope_section():
     module = GeneratorModule()
     try:
-        module.generate_section("chuong_I.muc_1", _fields())
+        module.generate_section("chuong_IX.muc_1", _fields())
         assert False, "phải raise ValueError cho section ngoài phạm vi"
     except ValueError:
         pass
