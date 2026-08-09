@@ -12,6 +12,16 @@ sections_scope:
   - chuong_III   # Tiêu chuẩn đánh giá E-HSDT
   - chuong_V     # Yêu cầu về kỹ thuật / Phạm vi cung cấp
 
+claude_budget:
+  usd_cap_per_process: 5.0
+  pricing_usd_per_mtok:
+    claude-sonnet-5:
+      input_usd_per_mtok: 3.0
+      output_usd_per_mtok: 15.0
+    claude-haiku-4-5-20251001:
+      input_usd_per_mtok: 1.0
+      output_usd_per_mtok: 5.0
+
 pdf_export:
   page_size: "A4"
   margin_top_mm: 20

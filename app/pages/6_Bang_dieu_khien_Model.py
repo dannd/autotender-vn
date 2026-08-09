@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from auth_ui import current_user  # noqa: E402
 from common import get_audit_log, get_orchestrator, init_page  # noqa: E402
 
-from autotender.config import get_models_settings, resolve_path  # noqa: E402
+from autotender.config import get_app_settings, get_models_settings, resolve_path  # noqa: E402
+from autotender.generation.claude_client import get_session_cost_usd  # noqa: E402
 from autotender.generation.claude_client import is_configured as is_claude_configured  # noqa: E402
 
 init_page("6 — Bảng điều khiển Model")
@@ -56,10 +57,18 @@ if not retriever.has_dense_index:
 
 st.divider()
 st.subheader("M5 — Generator (RAG+LLM redesign)")
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 c1.metric("Model Claude", cfg.generator.get("claude_model", "-"))
 c2.metric("Claude API đã cấu hình", "✅" if is_claude_configured() else "❌ (dùng template dự phòng)")
 c3.metric("Tier chạy lần gần nhất", orch.generator.active_tier or "-")
+budget_cap = get_app_settings().claude_budget.usd_cap_per_process
+c4.metric("Chi phí ước tính (process này)", f"${get_session_cost_usd():.3f} / ${budget_cap:.2f}")
+st.caption(
+    "Chi phí tính từ lúc process hiện tại khởi động, dùng giá cấu hình ở "
+    "`claude_budget.pricing_usd_per_mtok` (configs/app.yaml) — ước tính, không thay thế hoá đơn thật "
+    "từ Anthropic. Chạm trần sẽ tự động chuyển sang phương án dự phòng (không crash), xem "
+    "`generation/claude_client.py::BudgetExceededError`."
+)
 if not is_claude_configured():
     st.info(
         "Chưa cấu hình `ANTHROPIC_API_KEY` — Mức 1/Mức 2 vẫn chạy được nhưng chỉ liệt kê "

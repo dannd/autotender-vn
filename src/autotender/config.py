@@ -46,10 +46,33 @@ class AppConfig(BaseModel):
     reports_dir: str = "reports"
 
 
+class ClaudeModelPricing(BaseModel):
+    input_usd_per_mtok: float
+    output_usd_per_mtok: float
+
+
+class ClaudeBudgetConfig(BaseModel):
+    # Trần chi tiêu Claude API tính từ lúc process Python hiện tại khởi động (không phải
+    # per-request Streamlit session, không bền qua restart) — bộ đếm nằm hẳn trong bộ nhớ
+    # tiến trình (xem generation/claude_client.py). Đủ để chặn 1 vòng lặp lỗi/bug tiêu tiền
+    # không kiểm soát ở quy mô bản beta; KHÔNG phải hệ thống kế toán chi phí đa người dùng
+    # thật — muốn vậy cần theo dõi ở tầng nhà cung cấp (Anthropic Console budget alert) hoặc
+    # 1 bảng chi phí bền vững riêng, ngoài phạm vi bản beta này.
+    usd_cap_per_process: float = 5.0
+    # Giá tham khảo (USD / 1 triệu token) — CẦN đối chiếu lại với trang giá chính thức của
+    # Anthropic trước khi dùng số này để ra quyết định ngân sách thật; để trong config (không
+    # hard-code) chính là để sửa nhanh khi giá đổi mà không cần sửa code.
+    pricing_usd_per_mtok: dict[str, ClaudeModelPricing] = {
+        "claude-sonnet-5": ClaudeModelPricing(input_usd_per_mtok=3.0, output_usd_per_mtok=15.0),
+        "claude-haiku-4-5-20251001": ClaudeModelPricing(input_usd_per_mtok=1.0, output_usd_per_mtok=5.0),
+    }
+
+
 class AppSettings(BaseModel):
     app: AppConfig = AppConfig()
     sections_scope: list[str] = ["chuong_III", "chuong_V"]
     pdf_export: PdfExportConfig = PdfExportConfig()
+    claude_budget: ClaudeBudgetConfig = ClaudeBudgetConfig()
 
 
 class CrawlerConfig(BaseModel):

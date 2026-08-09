@@ -1,6 +1,17 @@
 import pytest
 
-from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
+import autotender.generation.claude_client as claude_client
+from autotender.config import AppSettings, ClaudeBudgetConfig, ClaudeModelPricing
+from autotender.generation.claude_client import BudgetExceededError, ClaudeUnavailableError, call_claude, get_session_cost_usd
+
+
+@pytest.fixture(autouse=True)
+def _reset_session_cost():
+    """`_session_cost_usd` là biến toàn cục cấp module (cố ý — cộng dồn theo process, xem
+    docstring `ClaudeBudgetConfig`) nên phải reset giữa các test để tránh rò rỉ trạng thái."""
+    claude_client._session_cost_usd = 0.0
+    yield
+    claude_client._session_cost_usd = 0.0
 
 
 def test_call_claude_raises_when_api_key_missing(monkeypatch):
@@ -139,3 +150,126 @@ def test_call_claude_wraps_api_errors(monkeypatch):
 
     with pytest.raises(ClaudeUnavailableError):
         call_claude(system="s", user_prompt="u", model="claude-sonnet-5")
+
+
+def _fake_settings(usd_cap_per_process: float = 5.0) -> AppSettings:
+    settings = AppSettings()
+    settings.claude_budget = ClaudeBudgetConfig(
+        usd_cap_per_process=usd_cap_per_process,
+        pricing_usd_per_mtok={
+            "claude-sonnet-5": ClaudeModelPricing(input_usd_per_mtok=3.0, output_usd_per_mtok=15.0),
+        },
+    )
+    return settings
+
+
+def test_call_claude_raises_budget_exceeded_before_calling_api(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(claude_client, "get_app_settings", lambda: _fake_settings(usd_cap_per_process=1.0))
+    claude_client._session_cost_usd = 1.0
+
+    with pytest.raises(BudgetExceededError):
+        call_claude(system="s", user_prompt="u", model="claude-sonnet-5")
+
+
+def test_budget_exceeded_is_a_claude_unavailable_error(monkeypatch):
+    """Callers đã bắt `ClaudeUnavailableError` để rơi xuống tier dự phòng — hết ngân sách
+    phải đi qua đúng đường đó, không cần sửa thêm ở nơi gọi."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(claude_client, "get_app_settings", lambda: _fake_settings(usd_cap_per_process=1.0))
+    claude_client._session_cost_usd = 1.0
+
+    with pytest.raises(ClaudeUnavailableError):
+        call_claude(system="s", user_prompt="u", model="claude-sonnet-5")
+
+
+def test_call_claude_records_cost_from_usage(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(claude_client, "get_app_settings", lambda: _fake_settings())
+    anthropic = pytest.importorskip("anthropic")
+
+    class _Block:
+        type = "text"
+        text = "ok"
+
+    class _Usage:
+        input_tokens = 1_000_000
+        output_tokens = 1_000_000
+
+    class _Response:
+        content = [_Block()]
+        usage = _Usage()
+
+    class _FakeMessages:
+        def create(self, **kwargs):
+            return _Response()
+
+    class _FakeClient:
+        def __init__(self, *a, **kw):
+            self.messages = _FakeMessages()
+
+    monkeypatch.setattr(anthropic, "Anthropic", _FakeClient)
+
+    assert get_session_cost_usd() == 0.0
+    call_claude(system="s", user_prompt="u", model="claude-sonnet-5")
+    # 1M input @ $3/Mtok + 1M output @ $15/Mtok = $18
+    assert get_session_cost_usd() == pytest.approx(18.0)
+
+
+def test_call_claude_skips_cost_for_response_without_usage(monkeypatch):
+    """Response giả lập (test double) không có `usage` — không được đoán mò chi phí,
+    chỉ đơn giản bỏ qua (xem `_record_cost_and_check_budget`)."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(claude_client, "get_app_settings", lambda: _fake_settings())
+    anthropic = pytest.importorskip("anthropic")
+
+    class _Block:
+        type = "text"
+        text = "ok"
+
+    class _Response:
+        content = [_Block()]
+
+    class _FakeMessages:
+        def create(self, **kwargs):
+            return _Response()
+
+    class _FakeClient:
+        def __init__(self, *a, **kw):
+            self.messages = _FakeMessages()
+
+    monkeypatch.setattr(anthropic, "Anthropic", _FakeClient)
+
+    call_claude(system="s", user_prompt="u", model="claude-sonnet-5")
+    assert get_session_cost_usd() == 0.0
+
+
+def test_call_claude_skips_cost_for_unpriced_model(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key-for-test")
+    monkeypatch.setattr(claude_client, "get_app_settings", lambda: _fake_settings())
+    anthropic = pytest.importorskip("anthropic")
+
+    class _Block:
+        type = "text"
+        text = "ok"
+
+    class _Usage:
+        input_tokens = 1_000_000
+        output_tokens = 1_000_000
+
+    class _Response:
+        content = [_Block()]
+        usage = _Usage()
+
+    class _FakeMessages:
+        def create(self, **kwargs):
+            return _Response()
+
+    class _FakeClient:
+        def __init__(self, *a, **kw):
+            self.messages = _FakeMessages()
+
+    monkeypatch.setattr(anthropic, "Anthropic", _FakeClient)
+
+    call_claude(system="s", user_prompt="u", model="model-khong-co-trong-bang-gia")
+    assert get_session_cost_usd() == 0.0
