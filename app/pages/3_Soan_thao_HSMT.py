@@ -68,7 +68,13 @@ with left:
         chapter = s.section_id.split(".")[0]
         chapters.setdefault(chapter, []).append(s)
 
+    # `selected_section_id` giữ NGUYÊN suốt vòng lặp vẽ nút (không gán lại ngay khi phát
+    # hiện click) — nếu gán lại giữa chừng, các nút render TRƯỚC vị trí vừa click trong cùng
+    # lượt này vẫn còn so khớp với giá trị CŨ, hiện sai màu "đang chọn" trong đúng 1 khung
+    # hình trước khi rerun. Dùng biến `clicked_section_id` riêng rồi `st.rerun()` để lượt vẽ
+    # tiếp theo bắt đầu lại từ đầu với giá trị mới, luôn nhất quán.
     selected_section_id = st.session_state.get("selected_section_id", doc.sections[0].section_id)
+    clicked_section_id = None
     # Duyệt theo thứ tự chương CHÍNH THỨC (I→VIII, xem CHAPTER_TITLES) — không theo thứ tự
     # sinh/nạp gốc, có thể lệch nếu người dùng sinh Chương V trước Chương I.
     for chapter in CHAPTER_TITLES:
@@ -78,9 +84,14 @@ with left:
         st.markdown(f"**{chapter}**")
         for s in sections:
             label = f"{status_icon(s.status)} {s.title}"
-            if st.button(label, key=f"nav_{selected_doc_id}_{s.section_id}", use_container_width=True):
-                selected_section_id = s.section_id
-    st.session_state["selected_section_id"] = selected_section_id
+            # `type="primary"` cho đúng mục đang mở (tô màu khác biệt) — trước đây mọi nút
+            # trong cây mục lục trông giống hệt nhau, không biết đang xem mục nào.
+            btn_type = "primary" if s.section_id == selected_section_id else "secondary"
+            if st.button(label, key=f"nav_{selected_doc_id}_{s.section_id}", use_container_width=True, type=btn_type):
+                clicked_section_id = s.section_id
+    if clicked_section_id and clicked_section_id != selected_section_id:
+        st.session_state["selected_section_id"] = clicked_section_id
+        st.rerun()
 
     with st.expander("🚩 Kiểm tra đủ thành phần (R5)"):
         r5_flags = orch.check_completeness(doc.sections)
