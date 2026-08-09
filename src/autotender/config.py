@@ -42,6 +42,7 @@ class AppConfig(BaseModel):
     data_dir: str = "data"
     db_path: str = "data/processed/hitl.db"
     auth_db_path: str = "data/processed/auth.db"
+    audit_db_path: str = "data/processed/audit.db"
     reports_dir: str = "reports"
 
 

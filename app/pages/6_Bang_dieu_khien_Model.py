@@ -17,7 +17,8 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import get_orchestrator, init_page  # noqa: E402
+from auth_ui import current_user  # noqa: E402
+from common import get_audit_log, get_orchestrator, init_page  # noqa: E402
 
 from autotender.config import get_models_settings, resolve_path  # noqa: E402
 from autotender.generation.claude_client import is_configured as is_claude_configured  # noqa: E402
@@ -78,3 +79,17 @@ if metrics_path.exists():
 else:
     st.warning(f"Chưa có `{metrics_path.relative_to(resolve_path('.'))}`.")
 st.caption("Số liệu retrieval/generation của bản redesign RAG+LLM xem ở **Trang 8 — Đánh giá**.")
+
+if current_user()["role"] == "admin":
+    st.divider()
+    st.subheader("🔒 Nhật ký kiểm toán")
+    st.caption(
+        "Ai đã đăng nhập/đăng xuất, sửa/duyệt/từ chối mục nào, xuất file nào, lúc nào — "
+        "bảng chỉ-ghi-thêm (append-only), không thể sửa/xoá qua ứng dụng (xem "
+        "`src/autotender/audit/store.py`). Chỉ hiển thị cho tài khoản role='admin'."
+    )
+    events = get_audit_log().list_events(limit=200)
+    if events:
+        st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
+    else:
+        st.caption("Chưa có sự kiện nào được ghi nhận.")

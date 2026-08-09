@@ -30,6 +30,7 @@ def _make_doc(doc_id: str, text: str) -> HSMTDocument:
 def test_switching_document_does_not_leak_stale_section_text(tmp_path, monkeypatch):
     db_path = tmp_path / "test_app.db"
     monkeypatch.setenv("AUTOTENDER_DB_PATH", str(db_path))
+    monkeypatch.setenv("AUTOTENDER_AUDIT_DB_PATH", str(tmp_path / "test_audit.db"))
     monkeypatch.setenv("AUTOTENDER_SKIP_AUTH", "1")
 
     store = HitlStore(db_path)

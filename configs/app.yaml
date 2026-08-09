@@ -4,6 +4,7 @@ app:
   data_dir: "data"
   db_path: "data/processed/hitl.db"
   auth_db_path: "data/processed/auth.db"
+  audit_db_path: "data/processed/audit.db"
   reports_dir: "reports"
 
 sections_scope:

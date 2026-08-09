@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from auth_ui import render_user_badge_and_logout, require_login  # noqa: E402
+from autotender.audit.store import AuditLog  # noqa: E402
 from autotender.config import get_app_settings, resolve_path  # noqa: E402
 from autotender.hitl.store import HitlStore  # noqa: E402
 from autotender.models.legal_qa import LegalQAModule  # noqa: E402
@@ -59,6 +60,16 @@ def get_store() -> HitlStore:
         return HitlStore(Path(override))
     settings = get_app_settings()
     return HitlStore(resolve_path(settings.app.db_path))
+
+
+@st.cache_resource
+def get_audit_log() -> AuditLog:
+    # Cùng cơ chế override với get_store() — cách ly test khỏi data/processed/audit.db thật.
+    override = os.environ.get("AUTOTENDER_AUDIT_DB_PATH")
+    if override:
+        return AuditLog(Path(override))
+    settings = get_app_settings()
+    return AuditLog(resolve_path(settings.app.audit_db_path))
 
 
 def tier_badge(tier: int | None) -> str:

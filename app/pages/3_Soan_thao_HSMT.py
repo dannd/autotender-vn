@@ -11,12 +11,13 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from auth_ui import current_user  # noqa: E402
-from common import get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge_claude  # noqa: E402
+from common import get_audit_log, get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge_claude  # noqa: E402
 
 init_page("3 — Soạn thảo HSMT (Mức 2)")
 
 orch = get_orchestrator()
 store = get_store()
+audit = get_audit_log()
 
 docs = store.list_documents()
 if not docs:
@@ -103,12 +104,16 @@ with mid:
         store.upsert_section(selected_doc_id, new_section, log_edit=False)
         st.rerun()
     if b2.button("✅ Phê duyệt", use_container_width=True, type="primary"):
+        username = current_user()["username"]
         if edited != section.generated_text:
             store.edit_section_text(selected_doc_id, section.section_id, edited)
-        store.approve_section(selected_doc_id, section.section_id, approved_by=current_user()["username"])
+            audit.record(username, "edit_section_text", doc_id=selected_doc_id, section_id=section.section_id)
+        store.approve_section(selected_doc_id, section.section_id, approved_by=username)
+        audit.record(username, "approve_section", doc_id=selected_doc_id, section_id=section.section_id)
         st.rerun()
     if b3.button("❌ Từ chối", use_container_width=True):
         store.reject_section(selected_doc_id, section.section_id)
+        audit.record(current_user()["username"], "reject_section", doc_id=selected_doc_id, section_id=section.section_id)
         st.rerun()
     if b4.button("↩️ Khôi phục bản gốc", use_container_width=True):
         section.edited_text = None

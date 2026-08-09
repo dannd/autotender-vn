@@ -18,6 +18,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from autotender.audit.store import AuditLog  # noqa: E402
 from autotender.auth.store import AuthStore  # noqa: E402
 from autotender.config import get_app_settings, resolve_path  # noqa: E402
 
@@ -29,6 +30,17 @@ _TEST_USER = {"username": "test", "display_name": "Test User", "role": "admin"}
 def _get_auth_store() -> AuthStore:
     settings = get_app_settings()
     return AuthStore(resolve_path(settings.app.auth_db_path))
+
+
+@st.cache_resource
+def _get_audit_log() -> AuditLog:
+    # Không dùng chung get_audit_log() của common.py để tránh vòng import
+    # (common.py đã import từ auth_ui.py) — cùng cơ chế override AUTOTENDER_AUDIT_DB_PATH.
+    override = os.environ.get("AUTOTENDER_AUDIT_DB_PATH")
+    if override:
+        return AuditLog(Path(override))
+    settings = get_app_settings()
+    return AuditLog(resolve_path(settings.app.audit_db_path))
 
 
 def current_user() -> dict | None:
@@ -47,11 +59,14 @@ def _render_login_form() -> None:
         submitted = st.form_submit_button("Đăng nhập", type="primary")
 
     if submitted:
-        user = _get_auth_store().verify_password(username.strip(), password)
+        clean_username = username.strip()
+        user = _get_auth_store().verify_password(clean_username, password)
         if user is None:
             st.error("Sai tên đăng nhập hoặc mật khẩu.")
+            _get_audit_log().record(clean_username or "(rỗng)", "login_failed")
         else:
             st.session_state[_SESSION_KEY] = user
+            _get_audit_log().record(user["username"], "login_success")
             st.rerun()
 
 
@@ -82,5 +97,6 @@ def render_user_badge_and_logout() -> None:
     with st.sidebar:
         st.caption(f"👤 **{user['display_name']}** ({user['role']})")
         if st.button("Đăng xuất", key="logout_button", use_container_width=True):
+            _get_audit_log().record(user["username"], "logout")
             del st.session_state[_SESSION_KEY]
             st.rerun()

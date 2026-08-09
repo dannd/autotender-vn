@@ -9,7 +9,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import get_store, init_page  # noqa: E402
+from auth_ui import current_user  # noqa: E402
+from common import get_audit_log, get_store, init_page  # noqa: E402
 
 from autotender.config import resolve_path  # noqa: E402
 from autotender.export.docx import export_docx  # noqa: E402
@@ -19,6 +20,7 @@ from autotender.export.print import build_print_html  # noqa: E402
 init_page("5 — Xuất và In")
 
 store = get_store()
+audit = get_audit_log()
 docs = store.list_documents()
 if not docs:
     st.info("Chưa có tài liệu nào.")
@@ -61,6 +63,7 @@ with tab_export:
         out_path = resolve_path("data/processed") / f"{selected_doc_id}.pdf"
         with st.spinner("Đang xuất PDF (thử WeasyPrint, tự động fallback ReportLab nếu cần)..."):
             export_pdf(doc, store, out_path, show_watermark=show_watermark)
+        audit.record(current_user()["username"], "export_pdf", doc_id=selected_doc_id)
         with open(out_path, "rb") as f:
             st.download_button("⬇️ Tải PDF", data=f.read(), file_name=f"{selected_doc_id}.pdf", mime="application/pdf")
 
@@ -68,6 +71,7 @@ with tab_export:
         out_path = resolve_path("data/processed") / f"{selected_doc_id}.docx"
         with st.spinner("Đang xuất DOCX..."):
             export_docx(doc, store, out_path)
+        audit.record(current_user()["username"], "export_docx", doc_id=selected_doc_id)
         with open(out_path, "rb") as f:
             st.download_button(
                 "⬇️ Tải DOCX", data=f.read(), file_name=f"{selected_doc_id}.docx",
@@ -76,4 +80,5 @@ with tab_export:
 
     if b3.button("🖨️ In trực tiếp", use_container_width=True):
         components.html(build_print_html(html), height=0)
+        audit.record(current_user()["username"], "print", doc_id=selected_doc_id)
         st.caption("Hộp thoại in của trình duyệt sẽ mở trong vài giây — nếu không thấy, kiểm tra popup blocker.")
