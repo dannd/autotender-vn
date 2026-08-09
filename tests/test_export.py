@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 from autotender.export.docx import export_docx
@@ -87,6 +88,27 @@ def test_build_print_html_embeds_document_and_calls_print():
     html_snippet = build_print_html("<html><body>Test</body></html>")
     assert "print-frame" in html_snippet
     assert ".print()" in html_snippet
+
+
+def test_build_print_html_escapes_backtick_and_template_expression():
+    """Hồi quy XSS: nội dung tài liệu (do người dùng nhập/sửa) từng bị nhét thẳng vào JS
+    template literal (backtick) — một backtick hoặc `${...}` trong nội dung có thể thoát
+    khỏi chuỗi và chèn mã JS tuỳ ý. Nội dung giờ phải nằm trọn trong 1 chuỗi JSON round-trip
+    được (không phá vỡ cấu trúc script bao ngoài)."""
+    malicious = "Tên gói thầu`; alert(document.cookie); const x = `${1+1}"
+    html_snippet = build_print_html(malicious)
+
+    # `json.dumps` là cách mã hoá thật sự dùng trong code — nội dung độc hại phải xuất hiện
+    # ĐÚNG NGUYÊN VĂN dưới dạng chuỗi JSON đã escape đó (chứng minh nó bị "giam" trong 1
+    # chuỗi hợp lệ, không phá vỡ cấu trúc script bao ngoài), thay vì đứng trần dạng mã JS.
+    assert json.dumps(malicious) in html_snippet
+    assert "JSON.parse(" in html_snippet
+
+
+def test_build_print_html_escapes_closing_script_tag():
+    malicious = "</script><script>alert(1)</script>"
+    html_snippet = build_print_html(malicious)
+    assert "</script><script>alert(1)</script>" not in html_snippet
 
 
 def test_export_pdf_renders_vietnamese_diacritics_correctly(tmp_path):
