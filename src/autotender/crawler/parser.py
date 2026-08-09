@@ -185,6 +185,95 @@ def enrich_dauthau_asia_detail(notice: TenderNotice, detail_html: str) -> Tender
     return notice.model_copy(update=updates) if updates else notice
 
 
+_KHLCNT_TOP_FIELD_MAP = {
+    "Chủ đầu tư": "investor",
+    "Bên mời thầu": "procuring_entity",
+}
+
+# Nhãn ở CẤP GÓI THẦU (trong từng khối `.cc-tit` "1. <tên gói>...") — khác nhãn cấp dự án
+# (`_KHLCNT_TOP_FIELD_MAP`, dùng class `.c-tit`/`.c-val`); cấp gói dùng `.c-tl`/`.c-vl`.
+_KHLCNT_PACKAGE_FIELD_MAP = {
+    "Chi tiết nguồn vốn": "funding_source",
+    "Hình thức LCNT": "selection_method",
+    "Loại hợp đồng": "contract_type",
+    "Thời gian thực hiện gói thầu": "execution_time",
+    "Lĩnh vực": "package_type",
+    "Giá gói thầu": "package_value",  # luôn bị khoá sau đăng nhập trên trang công khai
+}
+
+
+def enrich_dauthau_asia_khlcnt_detail(notice: TenderNotice, detail_html: str) -> TenderNotice:
+    """Bổ sung trường từ trang chi tiết KHLCNT (`.c-tit`/`.c-val` cấp dự án +
+    `.c-tl`/`.c-vl` cấp gói thầu đầu tiên trong kế hoạch — 1 KHLCNT có thể có nhiều gói,
+    chỉ lấy gói đầu vì `TenderNotice`/luồng Nạp KHLCNT hiện chỉ mô hình hoá 1 gói/tài liệu).
+
+    Giá gói thầu luôn bị khoá sau đăng nhập trên trang công khai — giữ `None`, không suy
+    đoán (Mục 2.2 SPEC), giống `enrich_dauthau_asia_detail`.
+    """
+    from selectolax.parser import HTMLParser
+
+    tree = HTMLParser(detail_html)
+    updates: dict[str, Any] = {}
+
+    for tit in tree.css(".c-tit"):
+        label = tit.text(strip=True).split("\n")[0].strip()
+        field = _KHLCNT_TOP_FIELD_MAP.get(label)
+        if field is None:
+            continue
+        parent = tit.parent
+        val_node = parent.css_first(".c-val") if parent else None
+        value = val_node.text(strip=True) if val_node else None
+        if value and _LOGIN_REQUIRED_MARKER not in value:
+            updates[field] = value
+
+    # Chỉ lấy khối gói thầu ĐẦU TIÊN (`.cc-tit` đánh số "1.", "2."...) — dừng khi gặp
+    # `.cc-tit` thứ 2 (sang gói kế tiếp).
+    package_blocks = tree.css(".cc-tit")
+    first_package_container = package_blocks[0].parent if package_blocks else None
+    # `.cc-tit` nằm LỒNG bên trong 1 `.bidding-detail-item` wrapper riêng — so sánh dừng
+    # vòng lặp phải dùng `.parent` của gói thứ 2, không phải chính thẻ `.cc-tit`.
+    stop_after = package_blocks[1].parent if len(package_blocks) > 1 else None
+
+    node = first_package_container.next if first_package_container else None
+    while node is not None and node != stop_after:
+        for tl in (node.css(".c-tl") if hasattr(node, "css") else []):
+            label = tl.text(strip=True)
+            field = _KHLCNT_PACKAGE_FIELD_MAP.get(label)
+            if field is None:
+                continue
+            parent = tl.parent
+            val_node = parent.css_first(".c-vl") if parent else None
+            value = val_node.text(strip=True) if val_node else None
+            if not value or _LOGIN_REQUIRED_MARKER in value:
+                continue
+            if field == "package_value":
+                digits = "".join(ch for ch in value if ch.isdigit())
+                if not digits:
+                    continue
+                value = float(digits)
+            elif field == "package_type":
+                value = value.lower()
+            updates.setdefault(field, value)
+        node = node.next
+
+    return notice.model_copy(update=updates) if updates else notice
+
+
+def extract_khlcnt_task_summary(detail_html: str) -> str | None:
+    """Lấy "Tóm tắt công việc chính của gói thầu" (gói đầu tiên) từ trang chi tiết KHLCNT —
+    không có trường tương ứng trong `TenderNotice`, chỉ dùng để dựng văn bản demo pastable
+    (xem `scripts/crawl_khlcnt_dauthau_asia.py`)."""
+    from selectolax.parser import HTMLParser
+
+    tree = HTMLParser(detail_html)
+    for tl in tree.css(".c-tl"):
+        if tl.text(strip=True) == "Tóm tắt công việc chính của gói thầu":
+            parent = tl.parent
+            val_node = parent.css_first(".c-vl") if parent else None
+            return val_node.text(strip=True) if val_node else None
+    return None
+
+
 def parse_dauthau_asia_khlcnt_rows(html: str) -> list[TenderNotice]:
     """Parse bảng `table.bidding-table` trên trang tìm kiếm KHLCNT của dauthau.asia
     (vd `https://dauthau.asia/kehoach/luachon-nhathau/?type_info=2&q=<từ khoá>&page=N`)
