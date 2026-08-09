@@ -14,6 +14,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from auth_ui import render_user_badge_and_logout, require_login  # noqa: E402
 from autotender.config import get_app_settings, resolve_path  # noqa: E402
 from autotender.hitl.store import HitlStore  # noqa: E402
 from autotender.models.legal_qa import LegalQAModule  # noqa: E402
@@ -127,6 +128,10 @@ h1 {
 
 def init_page(title: str) -> None:
     st.set_page_config(page_title=f"AutoTender-VN — {title}", page_icon="📑", layout="wide")
+    # Phải gọi ngay sau `set_page_config` (lệnh Streamlit đầu tiên) và trước khi vẽ bất
+    # kỳ nội dung nào khác — `st.stop()` bên trong nếu chưa đăng nhập, chặn toàn bộ phần
+    # còn lại của trang.
+    require_login()
     st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
     # `st.markdown(..., unsafe_allow_html=True)` chèn <script> qua innerHTML — trình
     # duyệt KHÔNG thực thi script chèn kiểu này (theo đặc tả DOM). `components.html`
@@ -139,4 +144,5 @@ def init_page(title: str) -> None:
     with st.sidebar:
         st.divider()
         st.caption("📑 **AutoTender-VN** — Trợ lý soạn HSMT phần mềm/CNTT bằng RAG + Claude API")
+        render_user_badge_and_logout()
     st.title(title)

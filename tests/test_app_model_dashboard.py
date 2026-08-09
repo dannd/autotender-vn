@@ -16,6 +16,7 @@ APP_PAGE = Path(__file__).resolve().parents[1] / "app" / "pages" / "6_Bang_dieu_
 @pytest.mark.skipif(not APP_PAGE.exists(), reason="Streamlit page not found")
 def test_model_dashboard_loads_without_exception(tmp_path, monkeypatch):
     monkeypatch.setenv("AUTOTENDER_DB_PATH", str(tmp_path / "test_app.db"))
+    monkeypatch.setenv("AUTOTENDER_SKIP_AUTH", "1")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     at = AppTest.from_file(str(APP_PAGE))

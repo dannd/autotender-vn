@@ -41,6 +41,7 @@ class AppConfig(BaseModel):
     name: str = "AutoTender-VN"
     data_dir: str = "data"
     db_path: str = "data/processed/hitl.db"
+    auth_db_path: str = "data/processed/auth.db"
     reports_dir: str = "reports"
 
 

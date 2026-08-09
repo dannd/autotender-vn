@@ -10,6 +10,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from auth_ui import current_user  # noqa: E402
 from common import get_orchestrator, get_store, init_page, severity_icon, status_icon, tier_badge_claude  # noqa: E402
 
 init_page("3 — Soạn thảo HSMT (Mức 2)")
@@ -104,7 +105,7 @@ with mid:
     if b2.button("✅ Phê duyệt", use_container_width=True, type="primary"):
         if edited != section.generated_text:
             store.edit_section_text(selected_doc_id, section.section_id, edited)
-        store.approve_section(selected_doc_id, section.section_id, approved_by="nguyendan1987")
+        store.approve_section(selected_doc_id, section.section_id, approved_by=current_user()["username"])
         st.rerun()
     if b3.button("❌ Từ chối", use_container_width=True):
         store.reject_section(selected_doc_id, section.section_id)
