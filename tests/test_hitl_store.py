@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 
 from autotender.hitl.feedback import export_feedback
@@ -87,4 +88,40 @@ def test_approval_log_for_pdf_appendix(tmp_path):
     assert len(log) == 2
     approved_row = next(r for r in log if r["section_id"] == "chuong_III.muc_1")
     assert approved_row["approved_by"] == "reviewer1"
+    store.close()
+
+
+def test_concurrent_edits_do_not_corrupt_or_lose_writes(tmp_path):
+    """Hồi quy khoá đồng thời (`@_locked`, `hitl/store.py`): `get_store()` cache DÙNG CHUNG
+    1 `HitlStore` cho MỌI người dùng (`app/common.py`), mỗi phiên Streamlit chạy trên 1
+    thread riêng — nhiều người dùng sửa cùng 1 mục cùng lúc trước đây có thể mất bản ghi
+    (lost update, đọc-rồi-ghi không nguyên tử) hoặc lỗi "database is locked". Mô phỏng bằng
+    nhiều thread liên tục sửa/duyệt cùng 1 mục — không được lỗi, và mỗi lần sửa phải sinh
+    đúng 1 dòng edit_log (chứng minh đọc-ghi không bị chen ngang giữa chừng)."""
+    store = HitlStore(tmp_path / "test.db")
+    store.save_document(_make_doc())
+
+    n_threads, edits_per_thread = 8, 10
+    errors: list[Exception] = []
+
+    def _worker(thread_id: int) -> None:
+        try:
+            for i in range(edits_per_thread):
+                store.edit_section_text("doc1", "chuong_III.muc_1", f"thread-{thread_id}-edit-{i}")
+                store.approve_section("doc1", "chuong_III.muc_1", approved_by=f"user-{thread_id}")
+        except Exception as e:  # noqa: BLE001 — muốn bắt MỌI lỗi (kể cả "database is locked")
+            errors.append(e)
+
+    threads = [threading.Thread(target=_worker, args=(i,)) for i in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    section = store.get_section("doc1", "chuong_III.muc_1")
+    assert section is not None
+    assert section.status == "approved"  # trạng thái cuối nhất quán, không kẹt giữa chừng
+    log = store.get_edit_log("doc1", "chuong_III.muc_1")
+    assert len(log) == n_threads * edits_per_thread  # không mất/nhân đôi dòng log nào
     store.close()
