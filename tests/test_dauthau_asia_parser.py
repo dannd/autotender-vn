@@ -1,4 +1,4 @@
-from autotender.crawler.parser import enrich_dauthau_asia_detail, parse_dauthau_asia_rows
+from autotender.crawler.parser import enrich_dauthau_asia_detail, parse_dauthau_asia_khlcnt_rows, parse_dauthau_asia_rows
 from autotender.schemas import TenderNotice
 
 _SAMPLE_HTML = """
@@ -83,3 +83,47 @@ def test_enrich_dauthau_asia_detail_fills_public_fields():
 def test_enrich_dauthau_asia_detail_does_not_fabricate_login_locked_fields():
     enriched = enrich_dauthau_asia_detail(_base_notice(), _DETAIL_HTML)
     assert enriched.package_value is None  # bị khoá sau đăng nhập, không được suy đoán
+
+
+_KHLCNT_SAMPLE_HTML = """
+<table class="bidding-table">
+<tr>
+    <td class="order-header" data-column="Tên dự án">
+        <div>
+            <a title="Bảo trì hệ thống phần mềm" href="/kehoach/luachon-nhathau/bao-tri-he-thong-phan-mem-2455731.html"><span class="plan-code">PL2600250241-00</span> Bảo trì hệ thống phần mềm</a>
+        </div>
+    </td>
+    <td data-column="Chủ đầu tư">
+        <div>
+            <a title="Trường Cao đẳng Đà Lạt" href="/project-owner/truong-cao-dang-da-lat-122774/">  <span class="solicitor-code">vn5800371838</span>  Trường Cao đẳng Đà Lạt
+            </a>
+        </div>
+    </td>
+    <td class="txt-center" data-column="Ngày đăng tải"><div>15:55 08/08/2026</div></td>
+    <td class="txt-center" data-column="Số gói thầu"><div>1</div></td>
+</tr>
+</table>
+"""
+
+
+def test_parse_dauthau_asia_khlcnt_rows_extracts_expected_fields():
+    notices = parse_dauthau_asia_khlcnt_rows(_KHLCNT_SAMPLE_HTML)
+    assert len(notices) == 1
+    n = notices[0]
+    assert isinstance(n, TenderNotice)
+    assert n.tbmt_id == "PL2600250241-00"
+    assert n.package_name == "Bảo trì hệ thống phần mềm"
+    assert "Đà Lạt" in n.investor
+    assert n.publish_date.isoformat() == "2026-08-08"
+    assert n.close_date is None  # KHLCNT không có cột "đóng thầu", không được suy đoán
+    assert n.source_url == "https://dauthau.asia/kehoach/luachon-nhathau/bao-tri-he-thong-phan-mem-2455731.html"
+
+
+def test_parse_dauthau_asia_khlcnt_rows_empty_html_returns_empty_list():
+    assert parse_dauthau_asia_khlcnt_rows("<html><body>no table here</body></html>") == []
+
+
+def test_parse_dauthau_asia_khlcnt_rows_ignores_tbmt_rows():
+    """Bảng có cùng class `bidding-table` với trang Thông báo mời thầu — phải phân biệt
+    bằng `.plan-code` (KHLCNT) chứ không lẫn `.bidding-code` (TBMT)."""
+    assert parse_dauthau_asia_khlcnt_rows(_SAMPLE_HTML) == []

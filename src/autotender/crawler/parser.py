@@ -185,6 +185,54 @@ def enrich_dauthau_asia_detail(notice: TenderNotice, detail_html: str) -> Tender
     return notice.model_copy(update=updates) if updates else notice
 
 
+def parse_dauthau_asia_khlcnt_rows(html: str) -> list[TenderNotice]:
+    """Parse bảng `table.bidding-table` trên trang tìm kiếm KHLCNT của dauthau.asia
+    (vd `https://dauthau.asia/kehoach/luachon-nhathau/?type_info=2&q=<từ khoá>&page=N`)
+    thành `TenderNotice`.
+
+    Cùng class bảng `table.bidding-table` với trang "Thông báo mời thầu"
+    (`parse_dauthau_asia_rows`) nhưng khác 2 điểm: mã bản ghi dùng `.plan-code` (KHLCNT,
+    tiền tố "PL...") thay vì `.bidding-code` (TBMT, tiền tố "IB..."), và cột thứ 4 là
+    "Số gói thầu" (không phải ngày đóng thầu) — không có trường tương ứng trong
+    `TenderNotice` nên `close_date` để `None`, đúng nguyên tắc "không bịa đặt" (Mục 2.2 SPEC).
+    """
+    from selectolax.parser import HTMLParser
+
+    tree = HTMLParser(html)
+    table = tree.css_first("table.bidding-table")
+    if table is None:
+        return []
+
+    notices: list[TenderNotice] = []
+    for row in table.css("tr"):
+        code_span = row.css_first(".plan-code")
+        if code_span is None:
+            continue
+        link = code_span.parent  # thẻ <a> bao ngoài span mã kế hoạch
+        plan_id = code_span.text(strip=True)
+        full_link_text = link.text(strip=True) if link else ""
+        package_name = full_link_text.replace(plan_id, "", 1).strip()
+        detail_href = link.attributes.get("href") if link else None
+
+        investor_span = row.css_first(".solicitor-code")
+        investor_link = investor_span.parent if investor_span else None
+        investor = investor_link.text(strip=True).replace(investor_span.text(strip=True), "", 1).strip() if investor_span else ""
+
+        publish_raw = row.css_first("td.txt-center").text(strip=True) if row.css_first("td.txt-center") else None
+
+        notices.append(
+            TenderNotice(
+                tbmt_id=plan_id,
+                package_name=package_name or "[CẦN NGƯỜI DÙNG BỔ SUNG: tên dự án]",
+                investor=investor or "[CẦN NGƯỜI DÙNG BỔ SUNG: chủ đầu tư]",
+                publish_date=_parse_vn_datetime(publish_raw),
+                close_date=None,
+                source_url=f"https://dauthau.asia{detail_href}" if detail_href else "https://dauthau.asia/kehoach/luachon-nhathau/",
+            )
+        )
+    return notices
+
+
 def _parse_vn_datetime(text: str | None) -> date | None:
     """Parse chuỗi 'HH:MM DD/MM/YYYY' (định dạng hiển thị của dauthau.asia) thành date."""
     if not text:
