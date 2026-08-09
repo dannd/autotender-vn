@@ -73,7 +73,11 @@ dẫn thô.
 
 ## Chạy ứng dụng
 
+Ứng dụng có cổng đăng nhập (xem [Mục "Bảo mật & vận hành bản beta"](#bảo-mật--vận-hành-bản-beta))
+— tạo tài khoản đầu tiên trước khi chạy:
+
 ```bash
+python scripts/create_user.py --username admin --display-name "Admin" --role admin
 streamlit run app/main.py
 ```
 
@@ -87,10 +91,48 @@ không cần tài liệu nào) hoặc **Trang 2 — Nạp KHLCNT** rồi **Trang
 pytest
 ```
 
-126 test. Phần lớn chạy nhanh (rule-based/mock); một số test (`test_orchestrator.py`,
+149 test. Phần lớn chạy nhanh (rule-based/mock); một số test (`test_orchestrator.py`,
 Tier 1 mock trong `test_generator.py`/`test_legal_qa.py`) dùng real embedding model —
 lần chạy đầu tải model từ HuggingFace nên chậm hơn (~2 phút), các lần sau dùng cache
 nhanh hơn nhiều.
+
+## Triển khai bằng Docker
+
+```bash
+docker build -t autotender-vn .
+docker run -p 8501:8501 -v autotender-data:/app/data/processed --env ANTHROPIC_API_KEY=sk-ant-... autotender-vn
+
+# Tạo tài khoản đầu tiên (1 lần, sau khi container đã chạy):
+docker exec -it <container_id> python scripts/create_user.py --username admin --role admin
+```
+
+Image build sẵn FAISS index cho model embedding mặc định (`vi_bi_encoder`) nên container
+chạy được ngay, không cần mạng lúc khởi động (trừ gọi Claude API). Mount volume vào
+`/app/data/processed/` để dữ liệu (tài liệu HSMT, tài khoản, nhật ký kiểm toán — đều là
+SQLite) không mất khi container bị xoá/tái tạo. Xem `Dockerfile` để biết những gì bị bỏ
+qua (OCR, playwright) và vì sao.
+
+## Bảo mật & vận hành bản beta
+
+Các cơ chế dưới đây được thêm sau khi có bản đánh giá "sẵn sàng cho thực tế" — mục tiêu là
+đủ an toàn cho vài người dùng nội bộ (cán bộ đấu thầu) đồng thời, KHÔNG phải hệ thống chịu
+tải cao/đa tổ chức thật (xem [Giới hạn đã biết](#giới-hạn-đã-biết-bản-redesign)):
+
+- **Đăng nhập** (`app/auth_ui.py`, `src/autotender/auth/store.py`): username/password,
+  PBKDF2-HMAC-SHA256 600k vòng lặp, salt riêng từng user. Không có tài khoản mặc định —
+  tạo bằng `python scripts/create_user.py`.
+- **Nhật ký kiểm toán bất biến** (`src/autotender/audit/store.py`): ai đăng nhập/đăng
+  xuất, sửa/duyệt/từ chối mục nào, xuất file nào, lúc nào — bảng append-only (trigger SQL
+  chặn UPDATE/DELETE). Xem ở **Trang 6 — Bảng điều khiển**, chỉ role `admin`.
+- **Trần ngân sách Claude API** (`src/autotender/generation/claude_client.py`): mặc định
+  $5/process (`claude_budget.usd_cap_per_process` trong `configs/app.yaml`), chặn gọi
+  API tiếp khi chạm trần thay vì tiêu tiền không kiểm soát; ứng dụng tự rơi xuống phương
+  án dự phòng (template/trích dẫn), không crash.
+- **Log JSON** (`src/autotender/utils/logging.py`): đặt `AUTOTENDER_LOG_FORMAT=json` khi
+  chạy sau hệ thống thu log tập trung (ELK/Loki/CloudWatch...).
+- **Đồng thời nhiều người dùng**: SQLite ở chế độ WAL + khoá Python (`RLock`) cho mọi
+  thao tác đọc-ghi trên `HitlStore`/`AuthStore`/`AuditLog` — đủ cho vài người dùng đồng
+  thời của bản beta, không nhắm throughput cao.
 
 ---
 
