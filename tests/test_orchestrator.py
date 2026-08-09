@@ -52,3 +52,50 @@ def test_orchestrator_full_flow_from_text_to_generated_sections(monkeypatch):
     # Soạn đủ cả 8 chương (đã sinh ở all_sections) -> không còn cờ R5 nào
     complete_flags = orch.check_completeness(all_sections)
     assert complete_flags == []
+
+
+def test_create_document_syncs_confirmed_package_name_into_fields(monkeypatch):
+    """Hồi quy: KHLCNT ghi "Tên dự án:" (không phải "Tên gói thầu:" mà regex M2 nhận diện)
+    nên NER không trích được PACKAGE_NAME/INVESTOR — người dùng phải tự gõ ở form xác nhận
+    (Trang 2). Trước fix, giá trị đó chỉ lưu vào `TenderNotice`, không vào `fields`, nên M5
+    vẫn sinh ra placeholder dù người dùng đã sửa đúng."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    orch = Orchestrator()
+
+    raw_text = "Tên dự án: Nâng cấp hệ thống mạng\nGiá gói thầu: 2.000.000.000 đồng\n"
+    fields = orch.extract_fields(orch.ingest_text(raw_text))
+    assert not any(f.name == "PACKAGE_NAME" for f in fields)
+    assert not any(f.name == "INVESTOR" for f in fields)
+
+    package = TenderNotice(
+        tbmt_id="IB2", package_name="Nâng cấp hệ thống mạng", investor="Sở Y tế tỉnh Z", source_url="https://x"
+    )
+    doc = orch.create_document("doc2", package, fields)
+
+    doc_package_name = next(f.value for f in doc.fields if f.name == "PACKAGE_NAME")
+    doc_investor = next(f.value for f in doc.fields if f.name == "INVESTOR")
+    assert doc_package_name == "Nâng cấp hệ thống mạng"
+    assert doc_investor == "Sở Y tế tỉnh Z"
+
+    section = orch.generate_section("chuong_III.muc_1", doc.fields)
+    assert "[CẦN NGƯỜI DÙNG BỔ SUNG: tên gói thầu]" not in section.generated_text
+    assert "[CẦN NGƯỜI DÙNG BỔ SUNG: chủ đầu tư]" not in section.generated_text
+    assert "Nâng cấp hệ thống mạng" in section.generated_text
+    assert "Sở Y tế tỉnh Z" in section.generated_text
+
+
+def test_create_document_does_not_mutate_caller_fields_list(monkeypatch):
+    """`create_document` phải trả về DANH SÁCH MỚI trong `doc.fields`, không sửa ngay trên
+    `fields` mà caller truyền vào — tránh side-effect bất ngờ nếu caller còn dùng lại biến
+    `fields` gốc sau khi gọi (vd để sinh mục ở nơi khác, xem test phía trên)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    orch = Orchestrator()
+
+    fields = orch.extract_fields(orch.ingest_text("Tên dự án: X\n"))
+    original_len = len(fields)
+    package = TenderNotice(tbmt_id="IB3", package_name="X", investor="Y", source_url="https://x")
+
+    orch.create_document("doc3", package, fields)
+
+    assert len(fields) == original_len
+    assert not any(f.name == "PACKAGE_NAME" for f in fields)

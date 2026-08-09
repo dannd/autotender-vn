@@ -25,6 +25,26 @@ from autotender.schemas import ComplianceFlag, ExtractedField, HSMTDocument, HSM
 from autotender.utils.vn_text import normalize_document_text
 
 
+def _sync_package_into_fields(package: TenderNotice, fields: list[ExtractedField]) -> list[ExtractedField]:
+    """Đồng bộ `package.package_name`/`investor` (giá trị NGƯỜI DÙNG ĐÃ XÁC NHẬN ở form
+    "Xác nhận thông tin gói thầu", Trang 2 — Nạp KHLCNT) vào `fields` (M2 NER dùng cho M5
+    sinh dự thảo).
+
+    Trước khi có hàm này, `TenderNotice.package_name`/`investor` chỉ được LƯU để hiển thị
+    (trang chủ, xuất file...) chứ KHÔNG BAO GIỜ được đưa vào `fields` — nếu văn bản KHLCNT
+    không đúng đúng cụm "Tên gói thầu:"/"Chủ đầu tư:" mà regex M2 nhận diện (vd ghi "Tên dự
+    án:" thay vì "Tên gói thầu:"), `fields` sẽ KHÔNG có mục PACKAGE_NAME/INVESTOR nào cả —
+    người dùng phải tự gõ ở form xác nhận, nhưng giá trị đó vẫn bị M5 bỏ qua khi sinh (M5
+    chỉ đọc `fields`, không đọc `package`), luôn ra `[CẦN NGƯỜI DÙNG BỔ SUNG: ...]` dù đã
+    sửa đúng. Ghi đè bất kể `fields` đã có mục cùng tên hay chưa — form xác nhận là bước
+    CUỐI người dùng duyệt qua, nên giá trị ở đó luôn đáng tin hơn kết quả regex thô.
+    """
+    updated = [f for f in fields if f.name not in ("PACKAGE_NAME", "INVESTOR")]
+    updated.append(ExtractedField(name="PACKAGE_NAME", value=package.package_name, confidence=1.0, source="manual"))
+    updated.append(ExtractedField(name="INVESTOR", value=package.investor, confidence=1.0, source="manual"))
+    return updated
+
+
 class Orchestrator:
     def __init__(self, retriever: HybridLegalRetriever | None = None):
         self.ner = NERModule()
@@ -55,6 +75,7 @@ class Orchestrator:
     # -- Tạo tài liệu HSMT rỗng (chưa sinh mục nào) ----------------------------
     def create_document(self, doc_id: str, package: TenderNotice, fields: list[ExtractedField]) -> HSMTDocument:
         now = datetime.now(timezone.utc)
+        fields = _sync_package_into_fields(package, fields)
         return HSMTDocument(doc_id=doc_id, package=package, fields=fields, sections=[], created_at=now, updated_at=now)
 
     # -- M4+M5+M6: sinh 1 mục, kèm compliance check --------------------------
