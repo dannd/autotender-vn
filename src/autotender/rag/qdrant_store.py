@@ -242,6 +242,42 @@ class QdrantLegalStore:
         # Trả về (position placeholder=0, score, payload) — caller dùng payload trực tiếp
         return [(0, hit.score, hit.payload) for hit in results]
 
+    def count_by_law_id(self, law_id: str) -> int:
+        """Đếm số vector của một văn bản luật cụ thể trong Qdrant collection."""
+        try:
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
+
+            client = self._get_client()
+            res = client.count(
+                collection_name=self._cfg.collection,
+                count_filter=Filter(
+                    must=[FieldCondition(key=PAYLOAD_LAW_ID, match=MatchValue(value=law_id))]
+                ),
+            )
+            return res.count
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Không đếm được vectors cho law_id '%s': %s", law_id, e)
+            return 0
+
+    def delete_by_law_id(self, law_id: str) -> int:
+        """Xóa toàn bộ vector và payload của một văn bản luật khỏi Qdrant collection (CRUD Delete)."""
+        try:
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
+
+            client = self._get_client()
+            before_count = self.count_by_law_id(law_id)
+            client.delete(
+                collection_name=self._cfg.collection,
+                points_selector=Filter(
+                    must=[FieldCondition(key=PAYLOAD_LAW_ID, match=MatchValue(value=law_id))]
+                ),
+            )
+            logger.info("Đã xóa %d vectors của law_id '%s' khỏi collection '%s'.", before_count, law_id, self._cfg.collection)
+            return before_count
+        except Exception as e:
+            logger.error("Lỗi khi xóa vectors cho law_id '%s': %s", law_id, e)
+            raise
+
     def payload_to_retrieved_chunk(self, payload: dict, score: float) -> RetrievedChunk:
         """Chuyển payload Qdrant thành RetrievedChunk để tương thích với phần còn lại của hệ thống."""
         return RetrievedChunk(
@@ -252,3 +288,4 @@ class QdrantLegalStore:
             law_id=payload.get(PAYLOAD_LAW_ID),
             dieu_so=payload.get(PAYLOAD_DIEU_SO),
         )
+
