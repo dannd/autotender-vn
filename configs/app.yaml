@@ -29,16 +29,11 @@ qdrant:
   # Timeout kết nối (giây) — tăng nếu Qdrant chạy trên máy chủ xa.
   timeout: 10
 
-# Embedding model — deepx-embedding-v1 là mặc định vì được train
-# đúng trên văn bản pháp lý tiếng Việt (nDCG@10 = 0.816 trên Zalo Legal benchmark)
-# và hỗ trợ ngữ cảnh 8K token (không cần sliding-window workaround của vi_bi_encoder).
-# Ghi đè bằng biến môi trường EMBEDDING_MODEL_KEY.
+# Embedding model — vi_bi_encoder là model tiếng Việt ổn định và tương thích trực tiếp
+# với sentence-transformers. (deepx_v1 có thể kích hoạt khi cài repo deepx-embed riêng).
 embedding:
-  model_key: "deepx_v1"
-  # Chiều vector của deepx-embedding-v1 ở chế độ Matryoshka mặc định (1024d).
-  # Thay đổi nếu dùng model khác — phải trùng với collection đã tạo trong Qdrant.
-  vector_size: 1024
-  # Batch size khi embed — giảm nếu bị OOM trên máy ít RAM.
+  model_key: "vi_bi_encoder"
+  vector_size: 768
   batch_size: 32
 
 claude_budget:

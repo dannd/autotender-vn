@@ -101,8 +101,8 @@ class EmbeddingConfig(BaseModel):
     vector_size phải khớp với chiều output thực tế của model — dùng để tạo Qdrant collection.
     """
 
-    model_key: str = "deepx_v1"
-    vector_size: int = 1024   # deepx-embedding-v1 Matryoshka default
+    model_key: str = "vi_bi_encoder"
+    vector_size: int = 768   # vi_bi_encoder default
     batch_size: int = 32
 
     @classmethod

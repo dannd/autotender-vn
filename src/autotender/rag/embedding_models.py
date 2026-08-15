@@ -33,13 +33,11 @@ EMBEDDING_MODELS: dict[str, str] = {
     "bge_m3": "BAAI/bge-m3",
 }
 
-# deepx_v1 là mặc định mới — đọc từ config/env trong get_app_settings().embedding.model_key.
-# Giữ hằng số này cho các script/test dùng trực tiếp không qua config.
-DEFAULT_EMBEDDING_MODEL_KEY = "deepx_v1"
+# vi_bi_encoder là model tiếng Việt ổn định mặc định.
+DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
 
 # Chiều vector mặc định tương ứng với DEFAULT_EMBEDDING_MODEL_KEY.
-# Phải đồng bộ với `configs/app.yaml::embedding.vector_size` và Qdrant collection.
-DEFAULT_VECTOR_SIZE = 1024
+DEFAULT_VECTOR_SIZE = 768
 
 
 def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_bar: bool = False):
