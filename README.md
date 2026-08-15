@@ -4,7 +4,7 @@ Phần mềm hỗ trợ **soạn thảo Hồ sơ mời thầu (E-HSMT) cho gói 
 Việt Nam bằng **RAG + LLM có sẵn (Claude API)** — đồ án cuối môn Deep Learning, bậc
 Thạc sĩ, thực hiện trong 15 ngày.
 
-**Tác giả:** Nguyễn Đình Đán, Nguyễn Văn Vũ, Triệu Việt Hoa, Hoàng Xuân Sơn, Nguyễn Thái
+**Tác giả:** Nguyễn Đình Đán, Nguyễn Văn Vũ, Trần Việt Hoa, Hoàng Xuân Sơn, Nguyễn Thái
 Thịnh — Trường Kinh doanh FSB, Đại học FPT. Xem báo cáo đầy đủ tại
 [`docs/AutoTender-VN_Report_IEEE.docx`](docs/AutoTender-VN_Report_IEEE.docx) và slide
 trình bày tại [`docs/AutoTender-VN_Slides.pptx`](docs/AutoTender-VN_Slides.pptx).
@@ -33,7 +33,7 @@ ngoài repo (`de-cuong-hsmt-rag-cntt-phan-mem.pdf`, cung cấp bởi giảng vi�
 
 ## Cài đặt
 
-Yêu cầu Python 3.10+.
+Yêu cầu Python 3.10+ và Docker (cho Qdrant Vector DB).
 
 ```bash
 python -m venv .venv
@@ -45,17 +45,38 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Dựng kho tri thức RAG (bắt buộc trước khi soạn/hỏi-đáp chất lượng cao):**
+**Khởi động Qdrant Vector DB (bắt buộc):**
 
 ```bash
-python scripts/fetch_legal_corpus.py --all      # tải luật thật (đã có sẵn trong data/samples/legal_corpus/)
-python scripts/build_legal_index.py --model vi_bi_encoder   # build FAISS cho model mặc định (vài phút, cần mạng)
+# Khởi động Qdrant (lần đầu tải image, các lần sau chạy ngay):
+docker compose up -d qdrant
+
+# Kiểm tra Qdrant đang chạy:
+docker compose ps
+# Dashboard UI (xem collections, vectors, payload):
+# http://localhost:6333/dashboard
+```
+
+**Nạp kho tri thức pháp luật vào Qdrant (1 lần, data persist qua restart):**
+
+```bash
+python scripts/ingest_to_qdrant.py
+# Lần đầu tải embedding model dxtech-asia/deepx-embedding-v1 (~1.5GB từ HuggingFace)
+# Các lần sau không cần ingest lại (data đã persist trong Docker volume)
+
+# Kiểm tra nhanh không embed/upsert:
+python scripts/ingest_to_qdrant.py --dry-run
+
+# Đổi model embedding và tại lại collection:
+python scripts/ingest_to_qdrant.py --model vi_bi_encoder --recreate-collection
 ```
 
 **Cấu hình Claude API (tuỳ chọn nhưng khuyến nghị):**
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # Windows: set ANTHROPIC_API_KEY=...
+# Copy và sửa file .env:
+cp .env.example .env
+# Thêm ANTHROPIC_API_KEY=sk-ant-... vào .env
 ```
 
 Không có key vẫn chạy được — hệ thống tự rơi xuống chế độ không-LLM (liệt kê trích dẫn
@@ -80,7 +101,16 @@ dẫn thô.
 — tạo tài khoản đầu tiên trước khi chạy:
 
 ```bash
+# Bước 0 (1 lần): Khởi động Qdrant
+docker compose up -d qdrant
+
+# Bước 1 (1 lần): Nạp kho tri thức vào Qdrant
+python scripts/ingest_to_qdrant.py
+
+# Bước 2 (1 lần): Tạo tài khoản admin
 python scripts/create_user.py --username admin --display-name "Admin" --role admin
+
+# Bước 3: Chạy app
 streamlit run app/main.py
 ```
 

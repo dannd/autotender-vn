@@ -20,6 +20,27 @@ sections_scope:
   - chuong_VII   # Điều kiện cụ thể của hợp đồng
   - chuong_VIII  # Biểu mẫu hợp đồng
 
+# Vector DB — Qdrant (primary). Đọc host/port từ biến môi trường trước,
+# fallback về giá trị dưới đây (phù hợp với docker-compose.yml mặc định).
+qdrant:
+  host: "localhost"      # ghi đè bằng QDRANT_HOST
+  port: 6333             # ghi đè bằng QDRANT_PORT
+  collection: "legal_chunks"   # ghi đè bằng QDRANT_COLLECTION
+  # Timeout kết nối (giây) — tăng nếu Qdrant chạy trên máy chủ xa.
+  timeout: 10
+
+# Embedding model — deepx-embedding-v1 là mặc định vì được train
+# đúng trên văn bản pháp lý tiếng Việt (nDCG@10 = 0.816 trên Zalo Legal benchmark)
+# và hỗ trợ ngữ cảnh 8K token (không cần sliding-window workaround của vi_bi_encoder).
+# Ghi đè bằng biến môi trường EMBEDDING_MODEL_KEY.
+embedding:
+  model_key: "deepx_v1"
+  # Chiều vector của deepx-embedding-v1 ở chế độ Matryoshka mặc định (1024d).
+  # Thay đổi nếu dùng model khác — phải trùng với collection đã tạo trong Qdrant.
+  vector_size: 1024
+  # Batch size khi embed — giảm nếu bị OOM trên máy ít RAM.
+  batch_size: 32
+
 claude_budget:
   usd_cap_per_process: 5.0
   pricing_usd_per_mtok:
@@ -41,3 +62,4 @@ pdf_export:
   font_size_pt: 13
   draft_watermark: true
   page_numbers: true
+

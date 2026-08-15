@@ -1,68 +1,131 @@
-"""Hybrid retrieval (dense FAISS + sparse BM25, hợp nhất bằng Reciprocal Rank Fusion) cho
-kho tri thức luật thật — đường truy xuất CHÍNH của bản redesign RAG+LLM (khác bản cũ, nơi
-BM25 chỉ là Tier 3 dự phòng — xem `models/retriever.py`).
+"""Hybrid retrieval (dense Qdrant + sparse BM25, hợp nhất bằng Reciprocal Rank Fusion) cho
+kho tri thức luật thật — phiên bản v2 dùng Qdrant thay vì FAISS flat file.
 
-RRF được chọn thay vì weighted-sum vì không cần chuẩn hoá thang điểm giữa 2 hệ thống khác
-hẳn nhau (cosine similarity của FAISS vs BM25 score không cùng đơn vị) — chỉ dùng thứ hạng
-(rank), công thức chuẩn: score(d) = sum_{hệ thống} 1 / (k + rank_hệ_thống(d)), k=60 (giá trị
-phổ biến trong literature, ít nhạy với k trong khoảng 10-100).
+Thay đổi so với v1 (FAISS):
+- Dense retrieval: gọi QdrantLegalStore.search() thay vì FaissChunkIndex.search()
+- Metadata filtering: thực hiện IN Qdrant DB (không phải lọc Python sau query)
+- Chunk metadata: đọc trực tiếp từ Qdrant payload (không cần maintain chunks.jsonl riêng)
+- Fallback: nếu Qdrant không available, tự động dùng BM25-only (giữ nguyên Degraded Mode)
 
-Metadata chunk (`chunks.jsonl`) và index FAISS đều là ARTIFACT build được từ
-`scripts/build_legal_index.py`, không commit vào git (`.gitignore`). Nếu chưa build,
-`__init__` tự chunk lại trực tiếp từ `data/samples/legal_corpus/*.jsonl` (đã commit, chunk
-nhanh — không cần ML) để BM25/`retrieve_sparse` LUÔN dùng được ngay cả khi chưa chạy script
-build — giữ đúng nguyên tắc "Tier 3 luôn thành công" cho các module gọi retriever này
-(`models/generator.py`, `models/legal_qa.py`). Chỉ riêng FAISS (dense) mới thật sự cần
-`scripts/build_legal_index.py` — thiếu thì `retrieve_dense`/`retrieve`/`retrieve_reranked`
-raise lỗi rõ ràng, các module gọi (Tier 1) tự rơi xuống Tier 3 (`BaseModule.run`).
+Những phần KHÔNG thay đổi:
+- BM25 vẫn build in-memory từ chunk text (không cần lưu vào Qdrant)
+- RRF fusion logic (k=60) giữ nguyên
+- Cross-encoder reranking giữ nguyên
+- expand_to_parent_article (parent chunk lookup) giữ nguyên
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from autotender.config import resolve_path
+from autotender.config import get_app_settings, resolve_path
 from autotender.rag.bm25 import BM25Index, build_bm25_index
 from autotender.rag.embedding_models import (
     CROSS_ENCODER_MODEL,
-    DEFAULT_EMBEDDING_MODEL_KEY,
     EMBEDDING_MODELS,
     encode_texts,
 )
-from autotender.rag.index import FaissChunkIndex
+from autotender.rag.qdrant_store import QdrantLegalStore, QdrantUnavailableError
 from autotender.rag.rerank import rerank_with_cross_encoder
 from autotender.schemas import RetrievedChunk
+from autotender.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 RRF_K = 60
 
 
 class HybridLegalRetriever:
-    def __init__(self, model_key: str = DEFAULT_EMBEDDING_MODEL_KEY, index_dir: str | Path | None = None):
-        if model_key not in EMBEDDING_MODELS:
-            raise ValueError(f"model_key '{model_key}' không có trong EMBEDDING_MODELS: {list(EMBEDDING_MODELS)}")
-        self.model_key = model_key
-        self.model_name = EMBEDDING_MODELS[model_key]
-        self._index_dir = Path(index_dir) if index_dir else resolve_path("data/index")
+    """Hybrid retriever: Dense (Qdrant) + Sparse (BM25) + Rerank (Cross-encoder).
 
-        chunks_path = self._index_dir / "chunks.jsonl"
-        if chunks_path.exists():
-            self._chunks = self._load_chunk_metadata(chunks_path)
+    Khởi tạo:
+        retriever = HybridLegalRetriever()         # dùng model từ config
+        retriever = HybridLegalRetriever("deepx_v1")
+        retriever = HybridLegalRetriever("vi_bi_encoder")  # để so sánh ablation
+
+    Fallback tự động: nếu Qdrant không available (chưa chạy docker compose), hệ thống
+    tự dùng BM25-only. Không crash, chỉ log warning.
+    """
+
+    def __init__(
+        self,
+        model_key: str | None = None,
+        qdrant_store: QdrantLegalStore | None = None,
+    ) -> None:
+        # Đọc model_key từ config nếu không truyền vào
+        cfg = get_app_settings()
+        self.model_key = model_key or cfg.embedding.model_key
+        if self.model_key not in EMBEDDING_MODELS:
+            raise ValueError(
+                f"model_key '{self.model_key}' không có trong EMBEDDING_MODELS: {list(EMBEDDING_MODELS)}"
+            )
+        self.model_name = EMBEDDING_MODELS[self.model_key]
+
+        # QdrantLegalStore — dùng config từ app.yaml / env vars
+        if qdrant_store is not None:
+            self._qdrant = qdrant_store
         else:
-            self._chunks = self._chunk_legal_corpus_directly()
+            self._qdrant = QdrantLegalStore(cfg=cfg.qdrant, vector_size=cfg.embedding.vector_size)
+
+        # Load chunk list để dùng cho BM25 (text-only, không cần vector).
+        # Thử đọc từ Qdrant trước (scroll all points); fallback về chunking trực tiếp từ corpus.
+        self._chunks: list[dict] = self._load_chunks()
         if not self._chunks:
             raise RuntimeError("Kho tri thức luật thật rỗng — kiểm tra data/samples/legal_corpus/*.jsonl.")
 
-        self._faiss_index: FaissChunkIndex | None = None
-        model_dir = self._index_dir / model_key
-        dim_path, index_path = model_dir / "dim.txt", model_dir / "index.faiss"
-        if dim_path.exists() and index_path.exists():
-            self._faiss_index = FaissChunkIndex.load(index_path, dim=int(dim_path.read_text(encoding="utf-8").strip()))
-
         self._bm25_index: BM25Index | None = None
-        self._encoder = None  # tải trễ — chỉ cần khi có truy vấn thật
+        self._encoder = None        # lazy-load: tải model khi có query thật
         self._cross_encoder_name = CROSS_ENCODER_MODEL
-        self._article_lookup: dict[tuple[str, int], str] | None = None  # tải trễ, xem _get_article_lookup
+        self._article_lookup: dict[tuple[str, int], str] | None = None  # lazy
+
+    def _load_chunks(self) -> list[dict]:
+        """Tải danh sách chunk cho BM25.
+
+        Thứ tự ưu tiên:
+        1. Scroll tất cả points từ Qdrant (payload có đủ text) — chunks và Qdrant luôn đồng bộ.
+        2. Fallback: chunk trực tiếp từ corpus file (nếu Qdrant chưa có dữ liệu hoặc offline).
+        """
+        if self._qdrant.is_available() and self._qdrant.collection_exists():
+            try:
+                chunks = self._scroll_all_chunks_from_qdrant()
+                if chunks:
+                    logger.info("Đã tải %d chunks từ Qdrant collection '%s'.", len(chunks), self._qdrant._cfg.collection)
+                    return chunks
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Không đọc được chunks từ Qdrant (%s) — fallback về corpus file.", e)
+
+        logger.info("Qdrant chưa có dữ liệu hoặc offline — chunk trực tiếp từ corpus (BM25-only mode).")
+        return self._chunk_legal_corpus_directly()
+
+    def _scroll_all_chunks_from_qdrant(self) -> list[dict]:
+        """Scroll tất cả points từ Qdrant để lấy payload (text + metadata) cho BM25."""
+        client = self._qdrant._get_client()
+        collection = self._qdrant._cfg.collection
+        chunks = []
+        offset = None
+        while True:
+            result, next_offset = client.scroll(
+                collection_name=collection,
+                with_payload=True,
+                with_vectors=False,
+                limit=1000,
+                offset=offset,
+            )
+            for point in result:
+                p = point.payload or {}
+                chunks.append({
+                    "chunk_id": p.get("chunk_id", str(point.id)),
+                    "text": p.get("text", ""),
+                    "source_doc": p.get("source_doc", ""),
+                    "law_id": p.get("law_id"),
+                    "dieu_so": p.get("dieu_so"),
+                    # Giữ qdrant_point_id để map kết quả dense search về đúng chunk
+                    "_qdrant_id": str(point.id),
+                })
+            if next_offset is None:
+                break
+            offset = next_offset
+        return chunks
 
     @staticmethod
     def _chunk_legal_corpus_directly() -> list[dict]:
@@ -70,19 +133,10 @@ class HybridLegalRetriever:
 
         raw_chunks = chunk_legal_corpus_dir(resolve_path("data/samples/legal_corpus"))
         return [
-            {"chunk_id": c.chunk_id, "text": c.text, "source_doc": c.source_doc, "law_id": c.law_id, "dieu_so": c.dieu_so}
+            {"chunk_id": c.chunk_id, "text": c.text, "source_doc": c.source_doc,
+             "law_id": c.law_id, "dieu_so": c.dieu_so}
             for c in raw_chunks
         ]
-
-    @staticmethod
-    def _load_chunk_metadata(path: Path) -> list[dict]:
-        chunks = []
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    chunks.append(json.loads(line))
-        return chunks
 
     @property
     def num_chunks(self) -> int:
@@ -90,14 +144,12 @@ class HybridLegalRetriever:
 
     @property
     def has_dense_index(self) -> bool:
-        """True nếu đã build FAISS (`scripts/build_legal_index.py`) cho `model_key` này —
-        dùng để hiển thị trạng thái trên GUI (Trang 6) mà không cần đọc thuộc tính private."""
-        return self._faiss_index is not None
+        """True nếu Qdrant đang chạy và collection đã có dữ liệu."""
+        return self._qdrant.is_available() and self._qdrant.collection_exists()
 
     def _get_encoder(self):
         if self._encoder is None:
             from sentence_transformers import SentenceTransformer
-
             self._encoder = SentenceTransformer(self.model_name)
         return self._encoder
 
@@ -106,11 +158,11 @@ class HybridLegalRetriever:
             self._bm25_index = build_bm25_index([c["text"] for c in self._chunks])
         return self._bm25_index
 
-    def indices_for_law_ids(self, law_ids: set[str]) -> set[int]:
-        """Chỉ số chunk có `law_id` nằm trong `law_ids` — dùng cho metadata filtering theo
-        loại văn bản TRƯỚC KHI xếp hạng (`retrieve*(..., law_ids=...)`). Public vì
-        `scripts/run_retrieval_eval.py` cần gọi trực tiếp để đo ablation "oracle filter"."""
-        return {i for i, c in enumerate(self._chunks) if c.get("law_id") in law_ids}
+    def _chunk_index_by_id(self) -> dict[str, int]:
+        """Map chunk_id → vị trí trong self._chunks — dùng để map kết quả Qdrant về index."""
+        if not hasattr(self, "_chunk_id_map"):
+            self._chunk_id_map = {c["chunk_id"]: i for i, c in enumerate(self._chunks)}
+        return self._chunk_id_map
 
     def _to_retrieved_chunk(self, idx: int, score: float) -> RetrievedChunk:
         c = self._chunks[idx]
@@ -119,42 +171,53 @@ class HybridLegalRetriever:
             score=score, law_id=c.get("law_id"), dieu_so=c.get("dieu_so"),
         )
 
-    def retrieve_dense(self, query: str, top_k: int = 50, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
-        if self._faiss_index is None:
-            raise RuntimeError(
-                f"Chưa có FAISS index cho model '{self.model_key}' tại {self._index_dir / self.model_key} — "
-                "chạy `python scripts/build_legal_index.py` trước."
-            )
-        encoder = self._get_encoder()
-        # `encode_texts` (không phải `encoder.encode` trực tiếp) — câu hỏi người dùng
-        # thường ngắn nên hiếm khi vượt `max_seq_length`, nhưng dùng chung 1 đường mã hoá
-        # với lúc build index (`scripts/build_legal_index.py`) để nhất quán, tránh trường
-        # hợp câu hỏi dài bị cắt âm thầm còn chunk trong kho tri thức thì không (hoặc
-        # ngược lại) — xem docstring `encode_texts`.
-        query_vec = encode_texts(encoder, [query])[0]
-        if law_ids is None:
-            indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
-            return [(i, s) for i, s in zip(indices, scores) if i >= 0]
-        # FAISS `IndexFlatIP` không hỗ trợ lọc theo metadata trước khi xếp hạng — corpus nhỏ
-        # (vài trăm chunk) nên lấy TOÀN BỘ kết quả xếp hạng rồi lọc/cắt lại trong Python, thay
-        # vì tích hợp `faiss.IDSelector` (phức tạp hơn, không cần thiết ở quy mô này). Đúng
-        # kết quả (không phải xấp xỉ) vì lọc SAU KHI đã có thứ hạng đầy đủ, không lọc top-k
-        # đã cắt sẵn (tránh bỏ sót kết quả đúng nằm ngoài top-k không lọc).
-        allowed = self.indices_for_law_ids(law_ids)
-        indices, scores = self._faiss_index.search(query_vec, len(self._chunks))
-        filtered = [(i, s) for i, s in zip(indices, scores) if i >= 0 and i in allowed]
-        return filtered[:top_k]
+    def retrieve_dense(
+        self, query: str, top_k: int = 50, law_ids: set[str] | None = None
+    ) -> list[tuple[int, float]]:
+        """Dense search qua Qdrant. Trả về list[(chunk_index, score)].
 
-    def retrieve_sparse(self, query: str, top_k: int = 50, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
-        allowed = self.indices_for_law_ids(law_ids) if law_ids is not None else None
+        Raise RuntimeError nếu Qdrant không available (được bắt bởi _fuse_rrf).
+        """
+        if not self._qdrant.is_available():
+            raise RuntimeError("Qdrant không available — hãy chạy `docker compose up -d qdrant`.")
+
+        encoder = self._get_encoder()
+        query_vec = encode_texts(encoder, [query])[0]
+
+        raw_results = self._qdrant.search(
+            query_vector=query_vec,
+            top_k=top_k,
+            filter_law_ids=law_ids,
+        )
+
+        # Map chunk_id từ payload về vị trí trong self._chunks để dùng chung với BM25
+        id_map = self._chunk_index_by_id()
+        results: list[tuple[int, float]] = []
+        for _, score, payload in raw_results:
+            cid = payload.get("chunk_id", "")
+            idx = id_map.get(cid)
+            if idx is not None:
+                results.append((idx, score))
+        return results
+
+    def retrieve_sparse(
+        self, query: str, top_k: int = 50, law_ids: set[str] | None = None
+    ) -> list[tuple[int, float]]:
+        allowed = None
+        if law_ids is not None:
+            allowed = {i for i, c in enumerate(self._chunks) if c.get("law_id") in law_ids}
         return self._get_bm25().search(query, min(top_k, len(self._chunks)), allowed_indices=allowed)
 
-    def _fuse_rrf(self, query: str, candidate_k: int, law_ids: set[str] | None = None) -> list[tuple[int, float]]:
-        # Dense chỉ chạy được nếu đã build FAISS (`scripts/build_legal_index.py`); nếu chưa,
-        # coi như không có kết quả dense thay vì raise — để `retrieve`/`retrieve_reranked`
-        # luôn thành công (BM25-only), giữ nguyên tắc "Tier 3 luôn chạy được" cho các module
-        # gọi retriever này mà không cần biết trước FAISS đã sẵn sàng hay chưa.
-        dense = self.retrieve_dense(query, candidate_k, law_ids=law_ids) if self._faiss_index is not None else []
+    def _fuse_rrf(
+        self, query: str, candidate_k: int, law_ids: set[str] | None = None
+    ) -> list[tuple[int, float]]:
+        """Fuse dense + sparse bằng RRF. Dense bị bỏ qua nếu Qdrant không available."""
+        try:
+            dense = self.retrieve_dense(query, candidate_k, law_ids=law_ids)
+        except (RuntimeError, QdrantUnavailableError):
+            logger.warning("Dense retrieval không available — dùng BM25-only (Degraded Mode).")
+            dense = []
+
         sparse = self.retrieve_sparse(query, candidate_k, law_ids=law_ids)
 
         rrf_scores: dict[int, float] = {}
@@ -167,19 +230,12 @@ class HybridLegalRetriever:
     def retrieve(
         self, query: str, top_k: int = 10, candidate_k: int = 50, law_ids: set[str] | None = None
     ) -> list[RetrievedChunk]:
-        """Hợp nhất dense + sparse bằng RRF. `candidate_k`: số ứng viên lấy từ MỖI hệ thống
-        trước khi hợp nhất (mặc định 50, theo kế hoạch "top-50" trước rerank). `law_ids`
-        (tuỳ chọn): chỉ xét chunk thuộc các văn bản này (metadata filtering, vd chỉ tìm trong
-        Nghị định 45/2026/NĐ-CP cho câu hỏi rõ ràng về chuyên ngành CNTT) — xem
-        `docs/DATA_CARD.md` Mục 12.3 về số liệu đo tác động thật (oracle filter)."""
+        """Hybrid RRF. `candidate_k` = ứng viên từ mỗi hệ thống trước fusion."""
         ranked = self._fuse_rrf(query, candidate_k, law_ids=law_ids)[:top_k]
         return [self._to_retrieved_chunk(idx, score) for idx, score in ranked]
 
     def _get_article_lookup(self) -> dict[tuple[str, int], str]:
-        """`(law_id, dieu_so) -> nguyên văn TRỌN Điều` — dùng cho `expand_to_parent_article`.
-        Đa số Điều đã là 1 chunk = 1 Điều trọn vẹn (`chunker.py::chunk_legal_article`, ngưỡng
-        `MAX_WORDS`); lookup này chỉ thực sự cần thiết cho phần thiểu số Điều dài bị cắt theo
-        Khoản, nơi 1 chunk chỉ chứa 1-2 khoản chứ không phải trọn Điều."""
+        """`(law_id, dieu_so) -> nguyên văn TRỌN Điều` — dùng cho expand_to_parent_article."""
         if self._article_lookup is None:
             from autotender.rag.chunker import load_legal_articles
 
@@ -193,13 +249,11 @@ class HybridLegalRetriever:
         return self._article_lookup
 
     def expand_to_parent_article(self, chunk: RetrievedChunk) -> str:
-        """Trả về nguyên văn TRỌN Điều chứa `chunk`, thay vì chỉ đoạn Khoản đã khớp truy hồi —
-        dùng khi build ngữ cảnh cho LLM sinh văn bản (M5 Generator, Mức 1 Hỏi-đáp), để mô hình
-        thấy đủ ngữ cảnh pháp lý của cả Điều thay vì 1 khoản bị tách rời (ý tưởng
-        "Parent-Child Chunking", áp ở tầng đọc ngữ cảnh thay vì đổi lại cách chunk/index —
-        retrieval, rerank và đánh giá Recall@k/MRR/nDCG vẫn tính trên chunk gốc, không đổi
-        hành vi/số liệu đã đo). Rơi về `chunk.text` nếu thiếu metadata hoặc không tìm thấy
-        Điều gốc trong corpus (vd corpus đã thay đổi sau khi build index)."""
+        """Trả về nguyên văn TRỌN Điều chứa chunk (Parent-Child Chunking pattern).
+
+        Giữ nguyên hành vi từ v1 — chỉ dùng cho LLM context, không ảnh hưởng
+        retrieval/rerank/đánh giá Recall@k.
+        """
         if chunk.law_id is None or chunk.dieu_so is None:
             return chunk.text
         return self._get_article_lookup().get((chunk.law_id, chunk.dieu_so), chunk.text)
@@ -207,20 +261,14 @@ class HybridLegalRetriever:
     def retrieve_reranked(
         self, query: str, top_k: int = 5, candidate_k: int = 50, law_ids: set[str] | None = None
     ) -> list[RetrievedChunk]:
-        """Hybrid RRF (top `candidate_k`) rồi rerank bằng cross-encoder xuống `top_k`
-        (mặc định top-50 -> top-5, đúng theo kế hoạch). Chậm hơn `retrieve` nhiều lần
-        (cross-encoder chạy N lần forward pass, N = candidate_k) — chỉ dùng khi cần độ
-        chính xác cao nhất (Mức 2 soạn mục HSMT), không dùng cho việc so sánh tốc độ.
-        `law_ids`: xem `retrieve`."""
-        # `_fuse_rrf` trả về HỢP của cả 2 nhánh (tối đa 2*candidate_k mục khác nhau nếu
-        # dense/sparse không trùng ứng viên nào) — phải cắt về đúng candidate_k trước khi
-        # rerank, nếu không cross-encoder chạy trên nhiều hơn "top-50" đã định (xác nhận
-        # thực tế: 82 ứng viên thay vì 50 trên corpus 684 đoạn), tốn thêm ~60% thời gian
-        # inference một cách không cần thiết.
+        """Hybrid RRF (top candidate_k) + cross-encoder rerank xuống top_k."""
         candidates = self._fuse_rrf(query, candidate_k, law_ids=law_ids)[:candidate_k]
         if not candidates:
             return []
-
         texts = [self._chunks[idx]["text"] for idx, _ in candidates]
         reranked = rerank_with_cross_encoder(self._cross_encoder_name, query, texts, top_k)
         return [self._to_retrieved_chunk(candidates[i][0], score) for i, score in reranked]
+
+    def indices_for_law_ids(self, law_ids: set[str]) -> set[int]:
+        """Backward compat — dùng bởi scripts/run_retrieval_eval.py cho ablation oracle filter."""
+        return {i for i, c in enumerate(self._chunks) if c.get("law_id") in law_ids}

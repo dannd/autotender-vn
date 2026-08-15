@@ -5,6 +5,7 @@ Dùng chung cho toàn bộ hệ thống để tránh hard-code đường dẫn/t
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -68,6 +69,50 @@ class ClaudeBudgetConfig(BaseModel):
     }
 
 
+class QdrantConfig(BaseModel):
+    """Cấu hình kết nối Qdrant Vector DB.
+
+    Các giá trị đọc từ biến môi trường QDRANT_HOST / QDRANT_PORT / QDRANT_COLLECTION nếu có
+    (ưu tiên hơn app.yaml) — cho phép override nhanh trong CI/CD hoặc khi chạy trên máy chủ
+    khác mà không cần sửa config file.
+    """
+
+    host: str = "localhost"
+    port: int = 6333
+    collection: str = "legal_chunks"
+    timeout: int = 10
+
+    @classmethod
+    def from_env_or_yaml(cls, yaml_data: dict[str, Any]) -> "QdrantConfig":
+        """Tạo QdrantConfig ưu tiên biến môi trường, fallback sang yaml_data."""
+        base = cls(**yaml_data) if yaml_data else cls()
+        return cls(
+            host=os.environ.get("QDRANT_HOST", base.host),
+            port=int(os.environ.get("QDRANT_PORT", base.port)),
+            collection=os.environ.get("QDRANT_COLLECTION", base.collection),
+            timeout=base.timeout,
+        )
+
+
+class EmbeddingConfig(BaseModel):
+    """Cấu hình embedding model dùng cho index và retrieval.
+
+    model_key phải khớp với key trong `rag/embedding_models.py::EMBEDDING_MODELS`.
+    vector_size phải khớp với chiều output thực tế của model — dùng để tạo Qdrant collection.
+    """
+
+    model_key: str = "deepx_v1"
+    vector_size: int = 1024   # deepx-embedding-v1 Matryoshka default
+    batch_size: int = 32
+
+    @classmethod
+    def from_env_or_yaml(cls, yaml_data: dict[str, Any]) -> "EmbeddingConfig":
+        """Ưu tiên biến môi trường EMBEDDING_MODEL_KEY nếu có."""
+        base = cls(**yaml_data) if yaml_data else cls()
+        model_key = os.environ.get("EMBEDDING_MODEL_KEY", base.model_key)
+        return cls(model_key=model_key, vector_size=base.vector_size, batch_size=base.batch_size)
+
+
 class AppSettings(BaseModel):
     app: AppConfig = AppConfig()
     sections_scope: list[str] = [
@@ -76,6 +121,8 @@ class AppSettings(BaseModel):
     ]
     pdf_export: PdfExportConfig = PdfExportConfig()
     claude_budget: ClaudeBudgetConfig = ClaudeBudgetConfig()
+    qdrant: QdrantConfig = QdrantConfig()
+    embedding: EmbeddingConfig = EmbeddingConfig()
 
 
 class CrawlerConfig(BaseModel):
@@ -102,9 +149,21 @@ class ModelsSettings(BaseModel):
     qa: dict[str, Any] = {}
 
 
+def _build_app_settings() -> AppSettings:
+    """Tạo AppSettings từ app.yaml với override từ biến môi trường cho Qdrant/Embedding."""
+    raw = _load_yaml("app.yaml")
+    # Qdrant và Embedding có logic đặc biệt: đọc env var trước yaml, nên không validate thẳng.
+    qdrant_cfg = QdrantConfig.from_env_or_yaml(raw.pop("qdrant", {}))
+    embedding_cfg = EmbeddingConfig.from_env_or_yaml(raw.pop("embedding", {}))
+    settings = AppSettings.model_validate(raw)
+    settings.qdrant = qdrant_cfg
+    settings.embedding = embedding_cfg
+    return settings
+
+
 @lru_cache
 def get_app_settings() -> AppSettings:
-    return AppSettings.model_validate(_load_yaml("app.yaml"))
+    return _build_app_settings()
 
 
 @lru_cache
@@ -120,3 +179,4 @@ def get_models_settings() -> ModelsSettings:
 def resolve_path(relative: str) -> Path:
     """Trả về đường dẫn tuyệt đối tính từ gốc dự án cho một đường dẫn tương đối trong config."""
     return PROJECT_ROOT / relative
+

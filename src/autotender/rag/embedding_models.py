@@ -16,15 +16,30 @@ ngoài phạm vi so sánh embedding đơn thuần ở đây).
 from __future__ import annotations
 
 EMBEDDING_MODELS: dict[str, str] = {
+    # --- MODEL MẶC ĐỊNH MỚI ---
+    # Kiến trúc Linear Attention (Gated DeltaNet-2, O(n) complexity), train trên văn bản
+    # pháp lý tiếng Việt, hỗ trợ 8K token native (không cần sliding-window workaround).
+    # Benchmark: nDCG@10 = 0.816 trên Zalo Legal Text Retrieval — cao nhất trong 4 model.
+    # Matryoshka Embeddings: hỗ trợ 256d → 1536d linh hoạt, mặc định dùng 1024d.
+    "deepx_v1": "dxtech-asia/deepx-embedding-v1",
+    # --- CÁC MODEL GIỮ LẠI ĐỂ SO SÁNH ABLATION (Trang 8 — Đánh giá) ---
     # Fine-tune trên dữ liệu tiếng Việt (SimCSE trên nền PhoBERT/XLM-R) — 768 chiều.
+    # Giới hạn: max 256 token, 65% chunk kho tri thức bị cắt âm thầm (bug đã ghi nhận).
     "vi_bi_encoder": "bkai-foundation-models/vietnamese-bi-encoder",
     # Đa ngôn ngữ tổng quát (paraphrase mining, 50+ ngôn ngữ trong đó có tiếng Việt) — 384 chiều.
     "multilingual_minilm": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     # Đa ngôn ngữ, ngữ cảnh dài (multi-granularity: dense/sparse/ColBERT) — 1024 chiều.
+    # Kết quả thực tế: độ tách biệt embedding thấp hơn vi_bi_encoder (xem MODEL_CARD.md).
     "bge_m3": "BAAI/bge-m3",
 }
 
-DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
+# deepx_v1 là mặc định mới — đọc từ config/env trong get_app_settings().embedding.model_key.
+# Giữ hằng số này cho các script/test dùng trực tiếp không qua config.
+DEFAULT_EMBEDDING_MODEL_KEY = "deepx_v1"
+
+# Chiều vector mặc định tương ứng với DEFAULT_EMBEDDING_MODEL_KEY.
+# Phải đồng bộ với `configs/app.yaml::embedding.vector_size` và Qdrant collection.
+DEFAULT_VECTOR_SIZE = 1024
 
 
 def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_bar: bool = False):
