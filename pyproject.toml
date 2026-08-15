@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # --- GUI ---
-    "streamlit==1.60.0",
+    # streamlit 1.60.x có conflict với qdrant-client qua urllib3 — nới lỏng để uv giải quyết
+    "streamlit>=1.40.0,<2.0",
     # --- Crawler ---
     "httpx==0.28.1",
     "selectolax==0.4.11",
@@ -21,8 +22,10 @@ dependencies = [
     "seqeval==1.2.2",
     "scikit-learn==1.9.0",
     # --- Vector store — Qdrant (primary) + FAISS (optional fallback) ---
-    "qdrant-client>=1.14.0",
-    "faiss-cpu==1.15.0",       # giữ làm fallback offline; bỏ nếu muốn bắt buộc Qdrant
+    # qdrant-client pin khớp với Qdrant server trong Docker image (qdrant/qdrant:latest = 1.17.1).
+    # Đổi version nếu nâng cấp Docker image (minor diff <= 1 là acceptable).
+    "qdrant-client==1.17.1",
+    "faiss-cpu>=1.7.0",       # giữ làm fallback offline; bỏ nếu muốn bắt buộc Qdrant
     # --- Embedding: deepx-embedding-v1 (pháp lý tiếng Việt, nDCG@10=0.816 Zalo Legal) ---
     # dùng qua sentence-transformers interface (không cần deepx-embed package riêng)
     # bkai-foundation-models/vietnamese-bi-encoder giữ làm model thứ 2 để so sánh
@@ -56,6 +59,13 @@ dev = ["pytest==9.1.1", "pytest-cov>=5.0"]
 # uv dùng pyproject.toml làm nguồn truth duy nhất cho dependencies.
 # Chạy `uv sync` để cài, `uv lock` để tạo/cập nhật lockfile.
 # requirements.txt vẫn giữ cho tương thích ngược với Dockerfile pip-based.
+#
+# PyTorch CPU-only index — cần thêm khi resolve để tránh tải CUDA build (~3GB).
+# index-strategy = unsafe-best-match cho phép uv tìm package từ nhiều index
+# (cần thiết vì urllib3 xuất hiện cả ở PyPI và PyTorch index với version khác nhau).
+index-url = "https://pypi.org/simple"
+extra-index-url = ["https://download.pytorch.org/whl/cpu"]
+index-strategy = "unsafe-best-match"
 
 [tool.setuptools.packages.find]
 where = ["src"]
