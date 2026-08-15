@@ -51,10 +51,13 @@ def load_embedding_model(model_key_or_name: str):
 
     if model_key_or_name == "deepx_v1" or "deepx" in model_name.lower():
         try:
+            import torch
             from deepx_embed import DeepXEmbed
-            return DeepXEmbed.from_pretrained(model_name)
-        except ImportError:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            return DeepXEmbed.from_pretrained(model_name, device=device)
+        except Exception:
             pass  # Fallback to SentenceTransformer
+
 
     from sentence_transformers import SentenceTransformer
     return SentenceTransformer(model_name)
