@@ -108,12 +108,13 @@ def main() -> None:
         sys.exit(1)
 
     # --- Bước 3: Embed ---
-    logger.info("\n[3/4] Đang tải embedding model '%s'...", model_name)
-    from sentence_transformers import SentenceTransformer
+    logger.info("\n[3/4] Đang tải embedding model '%s' (%s)...", model_key, model_name)
+    from autotender.rag.embedding_models import load_embedding_model
 
     t0 = time.time()
-    encoder = SentenceTransformer(model_name)
+    encoder = load_embedding_model(model_key)
     logger.info("    Tải model xong sau %.1fs.", time.time() - t0)
+
 
     logger.info("    Đang embed %d chunks (batch_size=%d)...", len(chunks), batch_size)
     t0 = time.time()

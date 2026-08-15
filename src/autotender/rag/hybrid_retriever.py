@@ -149,14 +149,15 @@ class HybridLegalRetriever:
 
     def _get_encoder(self):
         if self._encoder is None:
-            from sentence_transformers import SentenceTransformer
-            self._encoder = SentenceTransformer(self.model_name)
+            from autotender.rag.embedding_models import load_embedding_model
+            self._encoder = load_embedding_model(self.model_key)
         return self._encoder
 
     def _get_bm25(self) -> BM25Index:
         if self._bm25_index is None:
             self._bm25_index = build_bm25_index([c["text"] for c in self._chunks])
         return self._bm25_index
+
 
     def _chunk_index_by_id(self) -> dict[str, int]:
         """Map chunk_id → vị trí trong self._chunks — dùng để map kết quả Qdrant về index."""

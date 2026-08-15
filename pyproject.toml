@@ -57,6 +57,10 @@ dependencies = [
 ocr = ["vietocr==0.3.13", "torchvision==0.28.0"]
 # Test
 dev = ["pytest==9.1.1", "pytest-cov>=5.0"]
+deepx = [
+    "deepx-embed @ git+https://github.com/dx-tech-ai/deepx-embed.git",
+    "einops>=0.8.0",
+]
 
 [tool.uv]
 # uv dùng pyproject.toml làm nguồn truth duy nhất cho dependencies.

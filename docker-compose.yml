@@ -20,6 +20,24 @@ services:
       retries: 5
       start_period: 10s
 
+  # Dedicated Embedding Model Serving Container (Microservice)
+  # Phục vụ vector hóa văn bản (deepx-embedding-v1 / vi_bi_encoder)
+  # REST API: http://localhost:8080/embed
+  embedding-service:
+    build:
+      context: ./docker/embedding
+      dockerfile: Dockerfile
+    container_name: autotender-embedding-service
+    ports:
+      - "8080:8080"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    environment:
+      - EMBEDDING_MODEL_KEY=deepx_v1
+      - EMBEDDING_MODEL_NAME=dxtech-asia/deepx-embedding-v1
+      - VECTOR_SIZE=1024
+    restart: unless-stopped
+
   # Streamlit App — uncomment để chạy app trong container (tuỳ chọn).
   # Thông thường trong dev, chạy `streamlit run app/main.py` trực tiếp ngoài Docker
   # để reload nhanh hơn khi sửa code.
@@ -44,4 +62,5 @@ volumes:
   qdrant_storage:
     # Data của Qdrant persist qua các lần restart container.
     # Xóa volume để reset toàn bộ collection: docker compose down -v
-  # app_data:
+  hf_cache:
+  app_data:

@@ -40,40 +40,45 @@ DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
 DEFAULT_VECTOR_SIZE = 768
 
 
+def load_embedding_model(model_key_or_name: str):
+    """Tải embedding model theo key hoặc model name.
+
+    Hỗ trợ cả:
+    - Cách B (Đầy đủ): Dùng `DeepXEmbed` từ thư viện `deepx-embed` nếu là deepx_v1
+    - SentenceTransformer: Cho các model tiêu chuẩn (vi_bi_encoder, multilingual_minilm, bge_m3).
+    """
+    model_name = EMBEDDING_MODELS.get(model_key_or_name, model_key_or_name)
+
+    if model_key_or_name == "deepx_v1" or "deepx" in model_name.lower():
+        try:
+            from deepx_embed import DeepXEmbed
+            return DeepXEmbed.from_pretrained(model_name)
+        except ImportError:
+            pass  # Fallback to SentenceTransformer
+
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer(model_name)
+
+
 def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_bar: bool = False):
-    """Embed `texts` bằng `model` (SentenceTransformer), xử lý đúng cho văn bản DÀI HƠN
-    `model.max_seq_length`.
+    """Embed `texts` bằng `model` (SentenceTransformer hoặc DeepXEmbed).
 
-    Mặc định `SentenceTransformer.encode` CẮT ÂM THẦM phần vượt quá giới hạn — embedding
-    khi đó chỉ phản ánh phần ĐẦU văn bản, không báo lỗi rõ ràng. Xác nhận thực tế trên kho
-    tri thức luật: 447/684 chunk (65%) vượt quá 256 token của `vi_bi_encoder`
-    (`max_position_embeddings=258` — giới hạn KIẾN TRÚC của RoBERTa/PhoBERT nền tảng model
-    này, không thể tăng qua cấu hình như có thể làm với model BERT như
-    `multilingual_minilm`, dù checkpoint đó cũng bị cấu hình giới hạn thấp hơn kiến trúc
-    gốc, 128 so với 512 khả dụng).
-
-    Văn bản dài được cắt thành các cửa sổ chồng lấn dựa trên TOKENIZER THẬT của model
-    (chính xác hơn cách xấp xỉ theo số từ ở `rag/chunker.py`, vốn chỉ nhằm mục đích chunk
-    theo ranh giới Khoản chứ không nhằm khớp đúng ngân sách token của một model cụ thể),
-    embed từng cửa sổ trong 1 lượt batch, rồi mean-pool + chuẩn hoá L2 lại — kỹ thuật
-    chuẩn cho "long document embedding" khi văn bản vượt quá cửa sổ ngữ cảnh của encoder.
+    Đối với DeepXEmbed (8K context native): gọi trực tiếp `model.encode`.
+    Đối với SentenceTransformer có context ngắn (vi_bi_encoder 256 token): áp dụng
+    sliding-window mean-pooling để tránh bị cắt âm thầm.
     """
     import numpy as np
 
+    # Nếu là DeepXEmbed hoặc model hỗ trợ 8K native (không có tokenizer giới hạn 256)
+    if not hasattr(model, "tokenizer") or getattr(model, "max_seq_length", 8192) >= 4096:
+        vecs = model.encode(texts)
+        return np.asarray(vecs, dtype="float32")
+
     max_tokens = max(model.max_seq_length - 2, 1)  # chừa chỗ cho token đặc biệt [CLS]/[SEP]
-    # `overlap_tokens` PHẢI nhỏ hơn `max_tokens` — nếu không, mỗi bước trượt cửa sổ
-    # (`start = end - overlap_tokens`) có thể ra số ÂM thay vì tăng dần, khiến vòng lặp
-    # không bao giờ đạt điều kiện dừng (`start < len(token_ids)` luôn đúng khi start giảm
-    # dần) — vòng lặp vô hạn, phát hiện qua test với `max_seq_length` giả lập rất nhỏ.
     overlap_tokens = min(max(16, max_tokens // 8), max_tokens - 1) if max_tokens > 1 else 0
 
     windows_per_text: list[list[str]] = []
     for text in texts:
-        # Gọi `tokenizer.encode` trên text GỐC (chưa cắt) để ĐO độ dài — HuggingFace tự in
-        # cảnh báo "Token indices sequence length is longer than..." ngay tại lệnh gọi này
-        # nếu text dài hơn giới hạn model, KỂ CẢ KHI sau đó không đưa thẳng text gốc vào
-        # model (đã xác nhận: từng cửa sổ tách ra bên dưới luôn nằm trong ngân sách token
-        # sau khi decode/encode lại) — cảnh báo này vô hại, chỉ là tác dụng phụ của bước đo.
         token_ids = model.tokenizer.encode(text, add_special_tokens=False)
         if len(token_ids) <= max_tokens:
             windows_per_text.append([text])
@@ -102,10 +107,8 @@ def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_ba
             norm = np.linalg.norm(pooled)
             results.append(pooled / norm if norm > 0 else pooled)
         offset += n
-    return np.asarray(results)
+    return np.asarray(results, dtype="float32")
 
-# Cross-encoder rerank (Mục "Rerank cross-encoder" — GĐ2-N7). mMARCO là bộ MS MARCO dịch
-# sang 14 ngôn ngữ (gồm tiếng Việt) — cross-encoder train trên đó là lựa chọn hợp lý nhất
-# hiện có cho rerank tiếng Việt (không có cross-encoder train riêng cho tiếng Việt/pháp
-# luật VN sẵn có công khai).
+
 CROSS_ENCODER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+

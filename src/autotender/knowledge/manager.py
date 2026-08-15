@@ -40,11 +40,11 @@ class KnowledgeManager:
 
     def _get_encoder(self):
         if self._encoder is None:
-            from sentence_transformers import SentenceTransformer
+            from autotender.rag.embedding_models import load_embedding_model
             cfg = get_app_settings()
-            model_name = EMBEDDING_MODELS.get(cfg.embedding.model_key, EMBEDDING_MODELS["vi_bi_encoder"])
-            self._encoder = SentenceTransformer(model_name)
+            self._encoder = load_embedding_model(cfg.embedding.model_key)
         return self._encoder
+
 
     def list_documents(self) -> list[dict[str, Any]]:
         """Liệt kê toàn bộ các văn bản luật trong kho tri thức kèm số liệu thống kê."""
