@@ -228,19 +228,30 @@ class QdrantLegalStore:
             )
 
         try:
-            results = client.search(
-                collection_name=self._cfg.collection,
-                query_vector=vec,
-                query_filter=query_filter,
-                limit=top_k,
-                with_payload=True,
-            )
+            if hasattr(client, "query_points"):
+                response = client.query_points(
+                    collection_name=self._cfg.collection,
+                    query=vec,
+                    query_filter=query_filter,
+                    limit=top_k,
+                    with_payload=True,
+                )
+                results = response.points
+            else:
+                results = client.search(
+                    collection_name=self._cfg.collection,
+                    query_vector=vec,
+                    query_filter=query_filter,
+                    limit=top_k,
+                    with_payload=True,
+                )
         except Exception as e:  # noqa: BLE001
             logger.warning("Lỗi khi search Qdrant: %s — fallback về BM25.", e)
             return []
 
         # Trả về (position placeholder=0, score, payload) — caller dùng payload trực tiếp
         return [(0, hit.score, hit.payload) for hit in results]
+
 
     def count_by_law_id(self, law_id: str) -> int:
         """Đếm số vector của một văn bản luật cụ thể trong Qdrant collection."""
