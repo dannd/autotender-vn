@@ -37,7 +37,7 @@ qdrant:
 embedding:
   model_key: "deepx_v1"
   vector_size: 1024
-  batch_size: 32
+  batch_size: 8
 
 claude_budget:
   usd_cap_per_process: 5.0
