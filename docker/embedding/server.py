@@ -23,6 +23,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+import torch
+num_threads = min(os.cpu_count() or 8, 12)
+try:
+    torch.set_num_threads(num_threads)
+    torch.set_num_interop_threads(num_threads)
+except Exception:
+    pass
+
 MODEL_KEY = os.environ.get("EMBEDDING_MODEL_KEY", "deepx_v1")
 MODEL_NAME = os.environ.get("EMBEDDING_MODEL_NAME", "dxtech-asia/deepx-embedding-v1")
 VECTOR_SIZE = int(os.environ.get("VECTOR_SIZE", "1024"))
@@ -41,10 +49,12 @@ def get_model():
     # 1. Thử load qua deepx_embed nếu là deepx_v1
     if "deepx" in MODEL_KEY.lower() or "deepx" in MODEL_NAME.lower():
         try:
+            import torch
             from deepx_embed import DeepXEmbed
-            _model = DeepXEmbed.from_pretrained(MODEL_NAME)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            _model = DeepXEmbed.from_pretrained(MODEL_NAME, device=device)
             _model_type = "deepx_embed"
-            print(f"Loaded {MODEL_NAME} successfully via deepx_embed.")
+            print(f"Loaded {MODEL_NAME} successfully via deepx_embed (device={device}).")
             return _model, _model_type
         except Exception as e:
             print(f"Warning: Cannot load via deepx_embed: {e}. Falling back to SentenceTransformer...")
@@ -102,9 +112,10 @@ def embed(req: EmbedRequest):
 
     model, model_type = get_model()
     try:
+        dim_target = req.dimension or VECTOR_SIZE
         if model_type == "deepx_embed":
-            # deepx_embed encode
-            vecs = model.encode(req.texts)
+            # deepx_embed encode with Matryoshka dimension (e.g. 1024)
+            vecs = model.encode(req.texts, truncate_dim=dim_target)
             if isinstance(vecs, np.ndarray):
                 embeddings = vecs.tolist()
             else:

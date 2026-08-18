@@ -11,16 +11,32 @@ tới 8192 token — giải quyết tận gốc thay vì chỉ giảm nhẹ tri�
 `sentence-transformers` (chỉ lấy nhánh dense embedding tiêu chuẩn của model, KHÔNG dùng tính
 năng sparse/ColBERT multi-vector riêng của `bge-m3` — cần thư viện `FlagEmbedding` riêng,
 ngoài phạm vi so sánh embedding đơn thuần ở đây).
+
+## Chiến lược load model (theo thứ tự ưu tiên)
+
+1. **Embedding Service Container** (`deepx_v1`): Nếu container đang chạy tại
+   `EMBEDDING_SERVICE_URL` (mặc định `http://localhost:8080`), dùng HTTP client để gọi
+   `/embed` — không cần cài deepx-embed trong môi trường Python app.
+   Container phục vụ `deepx-embedding-v1` (1024d, 8K context, Linear Attention).
+
+2. **Cách B (local deepx_embed)**: Nếu thư viện `deepx_embed` được cài trực tiếp
+   (không cần container), load model native.
+
+3. **SentenceTransformer**: Cho các model tiêu chuẩn (vi_bi_encoder, multilingual_minilm,
+   bge_m3) hoặc khi deepx không khả dụng.
 """
 
 from __future__ import annotations
 
+import os
+
 EMBEDDING_MODELS: dict[str, str] = {
-    # --- MODEL MẶC ĐỊNH MỚI ---
+    # --- MODEL MẶC ĐỊNH ---
     # Kiến trúc Linear Attention (Gated DeltaNet-2, O(n) complexity), train trên văn bản
     # pháp lý tiếng Việt, hỗ trợ 8K token native (không cần sliding-window workaround).
     # Benchmark: nDCG@10 = 0.816 trên Zalo Legal Text Retrieval — cao nhất trong 4 model.
     # Matryoshka Embeddings: hỗ trợ 256d → 1536d linh hoạt, mặc định dùng 1024d.
+    # Phục vụ qua Docker container: http://localhost:8080/embed
     "deepx_v1": "dxtech-asia/deepx-embedding-v1",
     # --- CÁC MODEL GIỮ LẠI ĐỂ SO SÁNH ABLATION (Trang 8 — Đánh giá) ---
     # Fine-tune trên dữ liệu tiếng Việt (SimCSE trên nền PhoBERT/XLM-R) — 768 chiều.
@@ -33,51 +49,171 @@ EMBEDDING_MODELS: dict[str, str] = {
     "bge_m3": "BAAI/bge-m3",
 }
 
-# vi_bi_encoder là model tiếng Việt ổn định mặc định.
-DEFAULT_EMBEDDING_MODEL_KEY = "vi_bi_encoder"
+# deepx_v1 là model mặc định — phục vụ qua embedding-service container.
+DEFAULT_EMBEDDING_MODEL_KEY = "deepx_v1"
 
 # Chiều vector mặc định tương ứng với DEFAULT_EMBEDDING_MODEL_KEY.
-DEFAULT_VECTOR_SIZE = 768
+DEFAULT_VECTOR_SIZE = 1024
+
+# URL của embedding service container — ghi đè bằng biến môi trường EMBEDDING_SERVICE_URL.
+EMBEDDING_SERVICE_URL = os.environ.get("EMBEDDING_SERVICE_URL", "http://localhost:8080")
+
+
+class EmbeddingServiceClient:
+    """HTTP client gọi embedding-service container tại EMBEDDING_SERVICE_URL.
+
+    Tương thích với interface của SentenceTransformer để dùng được trong encode_texts().
+    Lazy-connect: chỉ kiểm tra /health khi có yêu cầu encode đầu tiên.
+    """
+
+    def __init__(self, base_url: str = EMBEDDING_SERVICE_URL, timeout: int = 300):
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.max_seq_length = 8192   # deepx_v1 native — encode_texts không cần sliding window
+        self._info: dict | None = None
+
+    def _get_info(self) -> dict:
+        """Lấy thông tin model từ /info một lần duy nhất."""
+        if self._info is None:
+            import urllib.request, json
+            with urllib.request.urlopen(f"{self.base_url}/info", timeout=5) as r:
+                self._info = json.loads(r.read())
+        return self._info
+
+    def encode(
+        self,
+        texts: list[str],
+        batch_size: int = 16,
+        show_progress_bar: bool = False,
+        **_kwargs,
+    ):
+        """Gửi texts theo batch tới /embed và nhận về numpy array (N, dim)."""
+        import json, urllib.request
+        import numpy as np
+
+        all_embeddings = []
+        try:
+            from tqdm import tqdm
+            iterator = range(0, len(texts), batch_size)
+            if show_progress_bar and len(texts) > batch_size:
+                iterator = tqdm(iterator, desc="Container Embedding", total=(len(texts) + batch_size - 1) // batch_size)
+        except ImportError:
+            iterator = range(0, len(texts), batch_size)
+
+        for i in iterator:
+            batch = texts[i : i + batch_size]
+            payload = json.dumps({"texts": batch}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{self.base_url}/embed",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    resp = json.loads(r.read())
+                    all_embeddings.extend(resp["embeddings"])
+            except Exception as e:
+                raise RuntimeError(
+                    f"Không thể gọi embedding-service tại {self.base_url}/embed (batch offset {i}): {e}\n"
+                    "Hãy chạy: docker compose up -d embedding-service"
+                ) from e
+
+        return np.asarray(all_embeddings, dtype="float32")
+
+    def is_available(self) -> bool:
+        """Kiểm tra container đang chạy không (không raise)."""
+        try:
+            import urllib.request
+            urllib.request.urlopen(f"{self.base_url}/health", timeout=3)
+            return True
+        except Exception:
+            return False
 
 
 def load_embedding_model(model_key_or_name: str):
     """Tải embedding model theo key hoặc model name.
 
-    Hỗ trợ cả:
-    - Cách B (Đầy đủ): Dùng `DeepXEmbed` từ thư viện `deepx-embed` nếu là deepx_v1
-    - SentenceTransformer: Cho các model tiêu chuẩn (vi_bi_encoder, multilingual_minilm, bge_m3).
-    """
-    model_name = EMBEDDING_MODELS.get(model_key_or_name, model_key_or_name)
+    Thứ tự ưu tiên:
+    1. deepx_v1 → EmbeddingServiceClient (gọi container HTTP) nếu container đang chạy
+    2. deepx_v1 → DeepXEmbed (cài local, Cách B) nếu thư viện có sẵn
+    3. SentenceTransformer cho vi_bi_encoder / multilingual_minilm / bge_m3
 
-    if model_key_or_name == "deepx_v1" or "deepx" in model_name.lower():
+    Lý do dùng container làm ưu tiên 1:
+    - Không cần cài deepx-embed trong môi trường Python app (nặng, phụ thuộc git)
+    - Mọi người chỉ cần `docker compose up -d embedding-service` là dùng được
+    - Fallback an toàn về vi_bi_encoder nếu container chưa chạy
+    """
+    from autotender.utils.logging import get_logger
+    logger = get_logger(__name__)
+
+    model_name = EMBEDDING_MODELS.get(model_key_or_name, model_key_or_name)
+    is_deepx = model_key_or_name == "deepx_v1" or "deepx" in model_name.lower()
+
+    # --- Ưu tiên 1: Gọi embedding-service container (HTTP) ---
+    if is_deepx:
+        client = EmbeddingServiceClient(base_url=EMBEDDING_SERVICE_URL)
+        if client.is_available():
+            logger.info(
+                "Dùng embedding-service container tại %s (deepx-embedding-v1, 1024d, 8K context).",
+                EMBEDDING_SERVICE_URL,
+            )
+            return client
+        else:
+            logger.warning(
+                "Embedding-service container KHÔNG available tại %s. "
+                "Thử load deepx_embed local...",
+                EMBEDDING_SERVICE_URL,
+            )
+
+    # --- Ưu tiên 2: Load deepx_embed local (Cách B — cài từ GitHub) ---
+    if is_deepx:
         try:
             import torch
             from deepx_embed import DeepXEmbed
             device = "cuda" if torch.cuda.is_available() else "cpu"
+            logger.info("Dùng deepx_embed local (device=%s).", device)
             return DeepXEmbed.from_pretrained(model_name, device=device)
-        except Exception:
-            pass  # Fallback to SentenceTransformer
+        except Exception as e:
+            logger.warning(
+                "Không load được deepx_embed local (%s). "
+                "Fallback sang vi_bi_encoder (768d) — KẾT QUẢ SẼ KHÁC VÌ DIM KHÁC!",
+                e,
+            )
 
+    # --- Ưu tiên 3: SentenceTransformer ---
+    # Nếu config đang dùng deepx_v1 nhưng cả container lẫn local đều không chạy,
+    # fallback về vi_bi_encoder để app không crash (Degraded Mode).
+    if is_deepx and model_key_or_name == "deepx_v1":
+        fallback_name = EMBEDDING_MODELS["vi_bi_encoder"]
+        logger.warning(
+            "Cả container lẫn deepx_embed local đều không khả dụng. "
+            "Fallback về vi_bi_encoder (%s) — collection có thể không khớp dim.",
+            fallback_name,
+        )
+        model_name = fallback_name
 
     from sentence_transformers import SentenceTransformer
+    logger.info("Tải SentenceTransformer: %s", model_name)
     return SentenceTransformer(model_name)
 
 
 def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_bar: bool = False):
-    """Embed `texts` bằng `model` (SentenceTransformer hoặc DeepXEmbed).
+    """Embed `texts` bằng `model` (EmbeddingServiceClient, SentenceTransformer hoặc DeepXEmbed).
 
-    Đối với DeepXEmbed (8K context native): gọi trực tiếp `model.encode`.
+    Đối với EmbeddingServiceClient và DeepXEmbed (8K context native): gọi trực tiếp `model.encode`.
     Đối với SentenceTransformer có context ngắn (vi_bi_encoder 256 token): áp dụng
     sliding-window mean-pooling để tránh bị cắt âm thầm.
     """
     import numpy as np
 
-    # Nếu là DeepXEmbed hoặc model hỗ trợ 8K native (không có tokenizer giới hạn 256)
+    # EmbeddingServiceClient hoặc model có max_seq_length >= 4096 (deepx, bge-m3)
     if not hasattr(model, "tokenizer") or getattr(model, "max_seq_length", 8192) >= 4096:
-        vecs = model.encode(texts)
+        vecs = model.encode(texts, batch_size=batch_size, show_progress_bar=show_progress_bar)
         return np.asarray(vecs, dtype="float32")
 
-    max_tokens = max(model.max_seq_length - 2, 1)  # chừa chỗ cho token đặc biệt [CLS]/[SEP]
+    # SentenceTransformer ngắn (vi_bi_encoder 256 token) — sliding-window mean-pooling
+    max_tokens = max(model.max_seq_length - 2, 1)  # chừa chỗ cho [CLS]/[SEP]
     overlap_tokens = min(max(16, max_tokens // 8), max_tokens - 1) if max_tokens > 1 else 0
 
     windows_per_text: list[list[str]] = []
@@ -114,4 +250,3 @@ def encode_texts(model, texts: list[str], batch_size: int = 32, show_progress_ba
 
 
 CROSS_ENCODER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
-

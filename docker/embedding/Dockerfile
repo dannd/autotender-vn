@@ -15,10 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends git curl && rm 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 RUN uv pip install --system --extra-index-url https://download.pytorch.org/whl/cpu \
-    "torch==2.3.1+cpu" \
+    "torch==2.5.1+cpu" \
     "fastapi>=0.115.0" \
     "uvicorn>=0.30.0" \
     "pydantic>=2.7.0" \
+    "transformers>=4.44.0,<4.47.0" \
     "sentence-transformers>=3.0.0" \
     "einops>=0.8.0" \
     "git+https://github.com/dx-tech-ai/deepx-embed.git"

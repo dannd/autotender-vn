@@ -29,11 +29,14 @@ qdrant:
   # Timeout kết nối (giây) — tăng nếu Qdrant chạy trên máy chủ xa.
   timeout: 10
 
-# Embedding model — vi_bi_encoder là model tiếng Việt ổn định và tương thích trực tiếp
-# với sentence-transformers. (deepx_v1 có thể kích hoạt khi cài repo deepx-embed riêng).
+# Embedding model — deepx_v1 là model mặc định, phục vụ qua embedding-service container:
+#   docker compose up -d embedding-service
+#   Container tự tải model khi khởi động, app gọi HTTP tới http://localhost:8080/embed
+# Vi_bi_encoder vẫn dùng được khi ablation:
+#   python scripts/ingest_to_qdrant.py --model vi_bi_encoder --recreate-collection
 embedding:
-  model_key: "vi_bi_encoder"
-  vector_size: 768
+  model_key: "deepx_v1"
+  vector_size: 1024
   batch_size: 32
 
 claude_budget:
