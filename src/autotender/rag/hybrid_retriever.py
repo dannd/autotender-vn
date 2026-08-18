@@ -115,10 +115,15 @@ class HybridLegalRetriever:
                 p = point.payload or {}
                 chunks.append({
                     "chunk_id": p.get("chunk_id", str(point.id)),
-                    "text": p.get("text", ""),
+                    "text": p.get("text", p.get("content", "")),  # có thể là 'content' trong schema mới
                     "source_doc": p.get("source_doc", ""),
                     "law_id": p.get("law_id"),
+                    "law_name": p.get("law_name"),
+                    "doc_type": p.get("doc_type"),
                     "dieu_so": p.get("dieu_so"),
+                    "dieu_title": p.get("dieu_title"),
+                    "khoan_so": p.get("khoan_so"),
+                    "word_count": p.get("word_count"),
                     # Giữ qdrant_point_id để map kết quả dense search về đúng chunk
                     "_qdrant_id": str(point.id),
                 })
@@ -130,11 +135,20 @@ class HybridLegalRetriever:
     @staticmethod
     def _chunk_legal_corpus_directly() -> list[dict]:
         from autotender.rag.chunker import chunk_legal_corpus_dir
+        from autotender.rag.qdrant_store import _infer_doc_type
 
         raw_chunks = chunk_legal_corpus_dir(resolve_path("data/samples/legal_corpus"))
         return [
-            {"chunk_id": c.chunk_id, "text": c.text, "source_doc": c.source_doc,
-             "law_id": c.law_id, "dieu_so": c.dieu_so}
+            {
+                "chunk_id": c.chunk_id,
+                "text": c.text,
+                "source_doc": c.source_doc,
+                "law_id": c.law_id,
+                "doc_type": _infer_doc_type(c.law_id),
+                "dieu_so": c.dieu_so,
+                "dieu_title": getattr(c, "dieu_title", None),
+                "khoan_so": getattr(c, "khoan_so", None),
+            }
             for c in raw_chunks
         ]
 

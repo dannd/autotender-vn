@@ -145,10 +145,14 @@ def main() -> None:
     # Báo cáo kết quả
     info = store.collection_info()
     logger.info("\n=== Hoàn tất ===")
-    logger.info("Collection : %s", info.get("collection"))
-    logger.info("Vectors    : %s", info.get("vectors_count"))
-    logger.info("Dashboard  : %s", info.get("dashboard_url", f"http://{cfg.qdrant.host}:{cfg.qdrant.port}/dashboard"))
-    logger.info("\nLần sau khởi động app, dense retrieval sẽ tự động dùng collection này.")
+    logger.info("Collection    : %s", info.get("collection"))
+    logger.info("Points        : %s", info.get("points_count"))
+    logger.info("Vector schema : %s", info.get("vector_schema", "?"))
+    logger.info("Vector size   : %s", info.get("vector_size"))
+    logger.info("Dashboard     : %s", info.get("dashboard_url", f"http://{cfg.qdrant.host}:{cfg.qdrant.port}/dashboard"))
+    logger.info("\nKiểm tra payload đầy đủ:")
+    logger.info("  python scripts/check_qdrant_schema.py")
+    logger.info("Lần sau khởi động app, dense retrieval sẽ tự động dùng collection này.")
     logger.info("Chạy lại script này với --recreate-collection nếu muốn đổi model embedding.")
 
 

@@ -33,6 +33,9 @@ class RawChunk:
     # chunk_legal_article).
     law_id: str | None = None
     dieu_so: int | None = None
+    # Thêm để Qdrant payload đầy đủ — phục vụ Dashboard trực quan hóa và filter.
+    dieu_title: str | None = None   # "Lập hồ sơ mời thầu" (tiêu đề không có "Điều X.")
+    khoan_so: str | None = None     # "1", "2"... nếu chunk là 1 Khoản; None nếu trọn Điều
 
 
 def _make_chunk_id(source_doc: str, index: int) -> str:
@@ -117,6 +120,8 @@ def chunk_legal_article(article: LegalArticle) -> list[RawChunk]:
                 source_doc=base_label,
                 law_id=article.law_id,
                 dieu_so=article.dieu_so,
+                dieu_title=article.dieu_title,
+                khoan_so=None,  # trọn Điều, không cắt theo Khoản
             )
         ]
 
@@ -130,6 +135,8 @@ def chunk_legal_article(article: LegalArticle) -> list[RawChunk]:
                 source_doc=label,
                 law_id=article.law_id,
                 dieu_so=article.dieu_so,
+                dieu_title=article.dieu_title,
+                khoan_so=khoan_so,  # số khoản đầu tiên trong phần (có thể gộp nhiều khoản)
             )
         )
     return chunks
