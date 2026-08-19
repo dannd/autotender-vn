@@ -23,8 +23,13 @@ import re
 from dataclasses import dataclass, field
 
 from autotender.config import get_models_settings
-from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
-from autotender.generation.claude_client import is_configured as is_claude_configured
+from autotender.generation.llm_client import (
+    ClaudeUnavailableError,
+    LLMUnavailableError,
+    call_claude,
+    call_llm,
+    is_configured as is_llm_configured,
+)
 from autotender.models.base import BaseModule, TierUnavailableError
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
 from autotender.schemas import ComplianceFlag, ExtractedField, RetrievedChunk
@@ -243,11 +248,20 @@ def _format_currency(value: str | None) -> str | None:
     return format_vn_number(int(digits)) + " đồng"
 
 
-def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]) -> list[ComplianceFlag]:
-    """So khớp mọi con số trong văn bản sinh ra với số liệu đã biết từ KHLCNT (Mục 2.2).
+# Các con số thông dụng trong quy định kỹ thuật / thời hạn / năm ban hành luật — không coi là số liệu tài chính sai lệch
+_COMMON_SPEC_NUMBERS = {
+    "10", "12", "15", "20", "24", "30", "45", "60", "90", "100", "120", "180", "360", "365",
+    "2020", "2021", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2030",
+    "32", "64", "128", "256", "512", "1024",
+}
 
-    Con số nào xuất hiện trong `generated_text` mà KHÔNG khớp bất kỳ giá trị số nào
-    trong `fields` sẽ bị gắn cờ R4 (nghi ngờ số liệu bịa/sai lệch).
+
+def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]) -> list[ComplianceFlag]:
+    """So khớp số liệu tài chính & thông số quan trọng trong văn bản sinh ra với KHLCNT (Mục 2.2).
+
+    Chỉ gắn cờ R4 với các số liệu tài chính / số liệu lớn (>100.000) hoặc số liệu đặc thù
+    xuất hiện trong văn bản mà KHÔNG khớp với KHLCNT, tránh báo động giả với các thông số
+    kỹ thuật phổ biến (bảo hành 24 tháng, RAM 64GB, năm 2025...).
     """
     known_numbers: set[str] = set()
     for f in fields:
@@ -263,6 +277,8 @@ def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]
             continue
         normalized = re.sub(r"[.,]", "", raw)
         if len(normalized) < 2:  # bỏ qua số đơn lẻ (số thứ tự mục, v.v.)
+            continue
+        if normalized in _COMMON_SPEC_NUMBERS and normalized not in known_numbers:
             continue
         if normalized not in known_numbers:
             flags.append(
@@ -311,9 +327,7 @@ class GeneratorModule(BaseModule[GeneratedSection]):
             raise ValueError(f"Section '{section_id}' không tồn tại trong SECTION_DEFINITIONS.")
         result = self.run(section_id, fields)
         # Chỉ verify phần văn bản KHÔNG PHẢI trích dẫn — số liệu trong đoạn trích dẫn đã có
-        # citation đi kèm (truy vết được nguồn), không phải model tự bịa. Bản Tier 3 chèn
-        # nguyên văn `c.text` nên xoá bằng string replace; bản Tier 1 (Claude) diễn giải/tóm
-        # tắt nên còn cần xoá thêm các cụm trích dẫn nội tuyến (`_strip_citation_references`).
+        # citation đi kèm (truy vết được nguồn), không phải model tự bịa.
         narrative_only = result.text
         for c in result.citations:
             narrative_only = narrative_only.replace(c.text, "")
@@ -329,23 +343,25 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         query = SECTION_DEFINITIONS[section_id]["query"]
         return self._retriever.retrieve_reranked(query, top_k=top_k)
 
-    # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
+    # -- Tier 1: LLM Gateway / Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, section_id: str, fields: list[ExtractedField]) -> GeneratedSection:
-        if not is_claude_configured():
-            raise TierUnavailableError("ANTHROPIC_API_KEY chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
+        if not is_llm_configured():
+            raise TierUnavailableError("LLM API Key chưa được cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
 
         citations = self._retrieve_context_reranked(section_id)
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan cho mục này.")
 
-        model = self._cfg.get("claude_model", "claude-sonnet-5")
+        model = self._cfg.get("claude_model") or self._cfg.get("model") or "claude-3-5-sonnet-20241022"
         prompt = self._build_prompt(section_id, fields, citations, self._retriever)
         try:
             text = call_claude(
-                system=_SYSTEM_PROMPT, user_prompt=prompt, model=model,
-                max_tokens=self._cfg.get("max_tokens", 1536),
+                system=_SYSTEM_PROMPT,
+                user_prompt=prompt,
+                model=model,
+                max_tokens=self._cfg.get("max_tokens", 4096),
             )
-        except ClaudeUnavailableError as e:
+        except (LLMUnavailableError, ClaudeUnavailableError) as e:
             raise TierUnavailableError(str(e)) from e
 
         return GeneratedSection(

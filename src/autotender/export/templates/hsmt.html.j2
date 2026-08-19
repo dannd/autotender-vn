@@ -11,46 +11,89 @@
 <div class="watermark">DỰ THẢO</div>
 {% endif %}
 
+<!-- TRANG BÌA CHUẨN THỂ THỨC NGHỊ ĐỊNH 30/2020/NĐ-CP -->
 <section class="cover-page">
-  <h1>Hồ sơ mời thầu</h1>
-  <p class="package-name">{{ doc.package.package_name }}</p>
-  <p>Chủ đầu tư: {{ doc.package.investor }}</p>
-  <p>Số hiệu tài liệu: {{ doc.doc_id }}</p>
-  <p>Ngày phát hành: {{ generated_date }}</p>
+  <div class="header-grid">
+    <div class="header-left">
+      <div class="investor-name">{{ (doc.package.investor or 'CƠ QUAN CHỦ ĐẦU TƯ') | upper }}</div>
+      <div class="bmt-title">BÊN MỜI THẦU</div>
+      <div class="line-decor">───────────</div>
+    </div>
+    <div class="header-right">
+      <div class="country-name">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+      <div class="motto">Độc lập - Tự do - Hạnh phúc</div>
+      <div class="line-decor">───────────────────────</div>
+    </div>
+  </div>
+
+  <div class="title-container">
+    <h1 class="main-title">E-HỒ SƠ MỜI THẦU</h1>
+    <div class="sub-title">(Áp dụng hình thức Đấu thầu rộng rãi qua mạng — Một giai đoạn một túi hồ sơ)</div>
+  </div>
+
+  <div class="package-card">
+    <table class="package-info-table">
+      <tr>
+        <td class="lbl">Tên gói thầu:</td>
+        <td class="val bold">{{ doc.package.package_name }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Chủ đầu tư:</td>
+        <td class="val">{{ doc.package.investor or 'Theo Quyết định phê duyệt KHLCNT' }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Số hiệu tài liệu:</td>
+        <td class="val">{{ doc.doc_id }}</td>
+      </tr>
+      <tr>
+        <td class="lbl">Căn cứ pháp lý:</td>
+        <td class="val">Luật Đấu thầu 22/2023/QH15, Nghị định 214/2025/NĐ-CP, Thông tư 22/2024/TT-BKHĐT</td>
+      </tr>
+    </table>
+  </div>
 
   <div class="draft-warning">
     Dự thảo do hệ thống hỗ trợ tạo lập — bắt buộc thẩm định và phê duyệt theo quy định
     pháp luật trước khi phát hành.
+  </div>
+
+  <div class="cover-footer">
+    NĂM {{ generated_date.split('-')[0] }}
   </div>
 </section>
 
 {% if not doc.is_fully_approved %}
 <section class="unapproved-warning">
   <h2>⚠️ Cảnh báo: tài liệu còn mục chưa phê duyệt</h2>
-  <p>{{ approved_count }}/{{ total_count }} mục đã được phê duyệt. Các mục sau CHƯA phê duyệt:</p>
+  <p>Tiến độ: <strong>{{ approved_count }}/{{ total_count }}</strong> mục đã được phê duyệt. Các mục sau CHƯA phê duyệt:</p>
   <ul>
     {% for s in doc.sections if s.status != "approved" %}
-    <li>{{ s.section_id }} — {{ s.title }} (trạng thái: {{ s.status }})</li>
+    <li><strong>{{ s.section_id }}</strong> — {{ s.title }} (Trạng thái: <em>{{ s.status }}</em>)</li>
     {% endfor %}
   </ul>
 </section>
 {% endif %}
 
 <section class="toc">
-  <h2>Mục lục</h2>
-  <ol>
-    {% for s in ordered_sections %}
-    <li>{{ s.section_id }} — {{ s.title }}</li>
+  <h2>MỤC LỤC HỒ SƠ MỜI THẦU</h2>
+  <div class="toc-list">
+    {% for chapter, sections in chapters.items() %}
+    <div class="toc-chapter">
+      <div class="toc-chapter-title">• {{ (chapter_titles.get(chapter, chapter)) | upper }}</div>
+      {% for s in sections %}
+      <div class="toc-section-item">- {{ s.section_id }}: {{ s.title }}</div>
+      {% endfor %}
+    </div>
     {% endfor %}
-  </ol>
+  </div>
 </section>
 
 {% for chapter, sections in chapters.items() %}
 <section class="chapter">
-  <h2>{{ chapter_titles.get(chapter, chapter) }}</h2>
+  <h2 class="chapter-header">{{ chapter_titles.get(chapter, chapter) | upper }}</h2>
   {% for s in sections %}
   <div class="section">
-    <h3>{{ s.section_id }}. {{ s.title }}</h3>
+    <h3 class="section-header">{{ s.section_id }}. {{ s.title }}</h3>
     <div class="content">{{ s.current_text }}</div>
   </div>
   {% endfor %}
@@ -58,19 +101,26 @@
 {% endfor %}
 
 <section class="appendix">
-  <h2>Phụ lục — Nhật ký phê duyệt</h2>
-  <table>
+  <h2 class="appendix-header">PHỤ LỤC — NHẬT KÝ THẨM ĐỊNH & PHÊ DUYỆT (HITL)</h2>
+  <p class="appendix-desc">Bảng tổng hợp lưu vết quá trình rà soát, chỉnh sửa và phê duyệt của các chuyên gia đối với từng điều khoản trong hồ sơ mời thầu:</p>
+  <table class="audit-table">
     <thead>
-      <tr><th>Mục</th><th>Tiêu đề</th><th>Trạng thái</th><th>Người phê duyệt</th><th>Thời điểm</th></tr>
+      <tr>
+        <th style="width: 15%; text-align: center;">Mục</th>
+        <th style="width: 40%;">Tiêu đề</th>
+        <th style="width: 15%; text-align: center;">Trạng thái</th>
+        <th style="width: 15%; text-align: center;">Người duyệt</th>
+        <th style="width: 15%; text-align: center;">Thời điểm</th>
+      </tr>
     </thead>
     <tbody>
       {% for row in approval_log %}
       <tr>
-        <td>{{ row.section_id }}</td>
+        <td style="text-align: center;">{{ row.section_id }}</td>
         <td>{{ row.title }}</td>
-        <td>{{ row.status }}</td>
-        <td>{{ row.approved_by or "-" }}</td>
-        <td>{{ row.approved_at or "-" }}</td>
+        <td style="text-align: center;">{{ (row.status or '') | upper }}</td>
+        <td style="text-align: center;">{{ row.approved_by or "-" }}</td>
+        <td style="text-align: center;">{{ row.approved_at or "-" }}</td>
       </tr>
       {% endfor %}
     </tbody>

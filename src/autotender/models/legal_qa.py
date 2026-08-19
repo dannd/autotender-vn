@@ -15,9 +15,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from autotender.config import get_models_settings
-from autotender.generation.claude_client import ClaudeUnavailableError, call_claude
-from autotender.generation.claude_client import is_configured as is_claude_configured
 from autotender.generation.law_classifier import DEFAULT_CLASSIFIER_MODEL, classify_relevant_law_ids
+from autotender.generation.llm_client import (
+    ClaudeUnavailableError,
+    LLMUnavailableError,
+    call_claude,
+    call_llm,
+    is_configured as is_llm_configured,
+)
 from autotender.generation.query_rewrite import DEFAULT_REWRITE_MODEL, rewrite_query
 from autotender.models.base import BaseModule, TierUnavailableError
 from autotender.rag.hybrid_retriever import HybridLegalRetriever
@@ -63,10 +68,10 @@ class LegalQAModule(BaseModule[QAAnswer]):
             return self._retriever.retrieve_reranked(question, top_k=top_k, candidate_k=candidate_k, law_ids=law_ids)
         return self._retriever.retrieve(question, top_k=top_k, candidate_k=candidate_k, law_ids=law_ids)
 
-    # -- Tier 1: Claude API + RAG (đường chính) ------------------------------
+    # -- Tier 1: LLM Gateway / Claude API + RAG (đường chính) ------------------------------
     def _try_tier1(self, question: str) -> QAAnswer:
-        if not is_claude_configured():
-            raise TierUnavailableError("ANTHROPIC_API_KEY chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
+        if not is_llm_configured():
+            raise TierUnavailableError("LLM API Key chưa cấu hình — bỏ qua truy xuất+rerank tốn thời gian.")
 
         # HyDE-lite: chuẩn hoá thuật ngữ câu hỏi TRƯỚC KHI truy hồi (không đổi câu hỏi hiển
         # thị/trả lời cho người dùng, chỉ đổi câu dùng để tìm kiếm) — xem
@@ -90,7 +95,7 @@ class LegalQAModule(BaseModule[QAAnswer]):
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan.")
 
-        model = self._cfg.get("claude_model", "claude-sonnet-5")
+        model = self._cfg.get("claude_model") or self._cfg.get("model") or "claude-3-5-sonnet-20241022"
         try:
             answer_text = call_claude(
                 system=_SYSTEM_PROMPT,
@@ -98,7 +103,7 @@ class LegalQAModule(BaseModule[QAAnswer]):
                 model=model,
                 max_tokens=self._cfg.get("max_tokens", 1024),
             )
-        except ClaudeUnavailableError as e:
+        except (LLMUnavailableError, ClaudeUnavailableError) as e:
             raise TierUnavailableError(str(e)) from e
 
         return QAAnswer(
@@ -112,16 +117,10 @@ class LegalQAModule(BaseModule[QAAnswer]):
 
     # -- Tier 3: liệt kê trích dẫn không qua LLM, luôn thành công ------------
     def _try_tier3(self, question: str) -> QAAnswer:
-        # Không rerank ở Tier 3: cross-encoder tốn ~7-9s/câu ngay cả khi đã cache model
-        # (đo thực tế — inference thật trên văn bản luật dài, không phải chi phí tải model)
-        # — trái với tinh thần "Tier 3 luôn thành công, không cần phụ thuộc ML nặng" áp
-        # dụng nhất quán cho các module khác (NER/Compliance Tier 3 thuần regex, Generator
-        # Tier 3 thuần template). Hybrid RRF (dense+BM25, không rerank) vẫn đủ tốt cho một
-        # fallback liệt kê trích dẫn thô.
         citations = self._retrieve_citations(question, allow_rerank=False)
         if citations:
             answer = (
-                "Không thể gọi Claude API (thiếu cấu hình hoặc lỗi kết nối) — dưới đây là các "
+                "Không thể gọi LLM API Gateway (thiếu cấu hình hoặc lỗi kết nối) — dưới đây là các "
                 "trích đoạn văn bản pháp luật liên quan nhất, người dùng tự đối chiếu:\n\n"
                 + "\n\n".join(f"({c.source_doc})\n{c.text}" for c in citations)
             )

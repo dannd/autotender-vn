@@ -113,6 +113,36 @@ class EmbeddingConfig(BaseModel):
         return cls(model_key=model_key, vector_size=base.vector_size, batch_size=base.batch_size)
 
 
+class LLMGatewayConfig(BaseModel):
+    """Cấu hình kết nối Universal OpenAI-compatible LLM Gateway (WokuShop / OpenAI / vLLM)."""
+
+    base_url: str = "https://llm.wokushop.com/v1"
+    default_model: str = "claude-3-5-sonnet-20241022"
+    timeout_seconds: int = 60
+    usd_cap_per_process: float = 5.0
+    pricing_usd_per_mtok: dict[str, ClaudeModelPricing] = {
+        "claude-3-5-sonnet-20241022": ClaudeModelPricing(input_usd_per_mtok=3.0, output_usd_per_mtok=15.0),
+        "claude-sonnet-5": ClaudeModelPricing(input_usd_per_mtok=3.0, output_usd_per_mtok=15.0),
+        "claude-haiku-4-5-20251001": ClaudeModelPricing(input_usd_per_mtok=1.0, output_usd_per_mtok=5.0),
+        "deepseek-chat": ClaudeModelPricing(input_usd_per_mtok=0.14, output_usd_per_mtok=0.28),
+        "gpt-4o": ClaudeModelPricing(input_usd_per_mtok=2.5, output_usd_per_mtok=10.0),
+        "gpt-4o-mini": ClaudeModelPricing(input_usd_per_mtok=0.15, output_usd_per_mtok=0.60),
+    }
+
+    @classmethod
+    def from_env_or_yaml(cls, yaml_data: dict[str, Any]) -> "LLMGatewayConfig":
+        base = cls(**yaml_data) if yaml_data else cls()
+        base_url = os.environ.get("LLM_BASE_URL", base.base_url)
+        default_model = os.environ.get("LLM_MODEL", base.default_model)
+        return cls(
+            base_url=base_url,
+            default_model=default_model,
+            timeout_seconds=base.timeout_seconds,
+            usd_cap_per_process=base.usd_cap_per_process,
+            pricing_usd_per_mtok=base.pricing_usd_per_mtok,
+        )
+
+
 class AppSettings(BaseModel):
     app: AppConfig = AppConfig()
     sections_scope: list[str] = [
@@ -121,6 +151,7 @@ class AppSettings(BaseModel):
     ]
     pdf_export: PdfExportConfig = PdfExportConfig()
     claude_budget: ClaudeBudgetConfig = ClaudeBudgetConfig()
+    llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     qdrant: QdrantConfig = QdrantConfig()
     embedding: EmbeddingConfig = EmbeddingConfig()
 
@@ -150,14 +181,16 @@ class ModelsSettings(BaseModel):
 
 
 def _build_app_settings() -> AppSettings:
-    """Tạo AppSettings từ app.yaml với override từ biến môi trường cho Qdrant/Embedding."""
+    """Tạo AppSettings từ app.yaml với override từ biến môi trường cho Qdrant/Embedding/LLM."""
     raw = _load_yaml("app.yaml")
-    # Qdrant và Embedding có logic đặc biệt: đọc env var trước yaml, nên không validate thẳng.
+    # Qdrant, Embedding, LLM Gateway có logic đọc env var trước yaml
     qdrant_cfg = QdrantConfig.from_env_or_yaml(raw.pop("qdrant", {}))
     embedding_cfg = EmbeddingConfig.from_env_or_yaml(raw.pop("embedding", {}))
+    llm_cfg = LLMGatewayConfig.from_env_or_yaml(raw.pop("llm_gateway", {}))
     settings = AppSettings.model_validate(raw)
     settings.qdrant = qdrant_cfg
     settings.embedding = embedding_cfg
+    settings.llm_gateway = llm_cfg
     return settings
 
 

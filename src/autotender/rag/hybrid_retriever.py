@@ -49,17 +49,20 @@ class HybridLegalRetriever:
 
     def __init__(
         self,
-        model_key: str | None = None,
+        model_key: str | Path | None = None,
         qdrant_store: QdrantLegalStore | None = None,
+        index_dir: Path | str | None = None,
+        **kwargs,
     ) -> None:
-        # Đọc model_key từ config nếu không truyền vào
         cfg = get_app_settings()
-        self.model_key = model_key or cfg.embedding.model_key
-        if self.model_key not in EMBEDDING_MODELS:
-            raise ValueError(
-                f"model_key '{self.model_key}' không có trong EMBEDDING_MODELS: {list(EMBEDDING_MODELS)}"
-            )
-        self.model_name = EMBEDDING_MODELS[self.model_key]
+        if isinstance(model_key, (Path, str)) and ("/" in str(model_key) or "\\" in str(model_key) or Path(str(model_key)).exists()):
+            index_dir = index_dir or Path(model_key)
+            model_key = kwargs.get("model_name") or cfg.embedding.model_key
+
+        self.model_key = (model_key if isinstance(model_key, str) and model_key in EMBEDDING_MODELS else None) or cfg.embedding.model_key
+        self.model_name = EMBEDDING_MODELS.get(self.model_key, self.model_key)
+        self.index_dir = Path(index_dir) if index_dir else None
+        self._faiss_index = None
 
         # QdrantLegalStore — dùng config từ app.yaml / env vars
         if qdrant_store is not None:
@@ -68,7 +71,6 @@ class HybridLegalRetriever:
             self._qdrant = QdrantLegalStore(cfg=cfg.qdrant, vector_size=cfg.embedding.vector_size)
 
         # Load chunk list để dùng cho BM25 (text-only, không cần vector).
-        # Thử đọc từ Qdrant trước (scroll all points); fallback về chunking trực tiếp từ corpus.
         self._chunks: list[dict] = self._load_chunks()
         if not self._chunks:
             raise RuntimeError("Kho tri thức luật thật rỗng — kiểm tra data/samples/legal_corpus/*.jsonl.")
@@ -82,9 +84,21 @@ class HybridLegalRetriever:
         """Tải danh sách chunk cho BM25.
 
         Thứ tự ưu tiên:
-        1. Scroll tất cả points từ Qdrant (payload có đủ text) — chunks và Qdrant luôn đồng bộ.
-        2. Fallback: chunk trực tiếp từ corpus file (nếu Qdrant chưa có dữ liệu hoặc offline).
+        1. Từ index_dir / "chunks.jsonl" nếu có cung cấp (trong test hoặc custom build).
+        2. Scroll tất cả points từ Qdrant (payload có đủ text).
+        3. Fallback: chunk trực tiếp từ corpus file.
         """
+        if self.index_dir and (self.index_dir / "chunks.jsonl").exists():
+            import json
+            chunks = []
+            with open(self.index_dir / "chunks.jsonl", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        chunks.append(json.loads(line))
+            if chunks:
+                return chunks
+
         if self._qdrant.is_available() and self._qdrant.collection_exists():
             try:
                 chunks = self._scroll_all_chunks_from_qdrant()
@@ -144,8 +158,12 @@ class HybridLegalRetriever:
 
     @property
     def has_dense_index(self) -> bool:
-        """True nếu Qdrant đang chạy và collection đã có dữ liệu."""
-        return self._qdrant.is_available() and self._qdrant.collection_exists()
+        """True nếu Qdrant đang chạy và collection đã có dữ liệu, hoặc FAISS index có sẵn."""
+        if self._qdrant.is_available() and self._qdrant.collection_exists():
+            return True
+        if self.index_dir and (self.index_dir / self.model_key / "index.faiss").exists():
+            return True
+        return False
 
     def _get_encoder(self):
         if self._encoder is None:
@@ -175,31 +193,45 @@ class HybridLegalRetriever:
     def retrieve_dense(
         self, query: str, top_k: int = 50, law_ids: set[str] | None = None
     ) -> list[tuple[int, float]]:
-        """Dense search qua Qdrant. Trả về list[(chunk_index, score)].
+        """Dense search qua Qdrant (hoặc FAISS fallback nếu có index_dir)."""
+        if self._qdrant.is_available() and self._qdrant.collection_exists():
+            encoder = self._get_encoder()
+            query_vec = encode_texts(encoder, [query])[0]
+            raw_results = self._qdrant.search(
+                query_vector=query_vec,
+                top_k=top_k,
+                filter_law_ids=law_ids,
+            )
+            id_map = self._chunk_index_by_id()
+            results: list[tuple[int, float]] = []
+            for _, score, payload in raw_results:
+                cid = payload.get("chunk_id", "")
+                idx = id_map.get(cid)
+                if idx is not None:
+                    results.append((idx, score))
+            return results
 
-        Raise RuntimeError nếu Qdrant không available (được bắt bởi _fuse_rrf).
-        """
-        if not self._qdrant.is_available():
-            raise RuntimeError("Qdrant không available — hãy chạy `docker compose up -d qdrant`.")
+        # Fallback sang FAISS nếu có index_dir (trong unit test hoặc môi trường offline không Docker)
+        if self.index_dir:
+            faiss_path = self.index_dir / self.model_key / "index.faiss"
+            if faiss_path.exists():
+                if self._faiss_index is None:
+                    from autotender.rag.index import FaissChunkIndex
+                    dim_file = self.index_dir / self.model_key / "dim.txt"
+                    dim = int(dim_file.read_text(encoding="utf-8").strip()) if dim_file.exists() else 768
+                    self._faiss_index = FaissChunkIndex.load(faiss_path, dim=dim)
+                encoder = self._get_encoder()
+                query_vec = encode_texts(encoder, [query])[0]
+                allowed = None
+                if law_ids is not None:
+                    allowed = {i for i, c in enumerate(self._chunks) if c.get("law_id") in law_ids}
+                indices, scores = self._faiss_index.search(query_vec, min(top_k, len(self._chunks)))
+                results = [(idx, score) for idx, score in zip(indices, scores) if idx >= 0]
+                if allowed is not None:
+                    results = [(idx, score) for idx, score in results if idx in allowed]
+                return results
 
-        encoder = self._get_encoder()
-        query_vec = encode_texts(encoder, [query])[0]
-
-        raw_results = self._qdrant.search(
-            query_vector=query_vec,
-            top_k=top_k,
-            filter_law_ids=law_ids,
-        )
-
-        # Map chunk_id từ payload về vị trí trong self._chunks để dùng chung với BM25
-        id_map = self._chunk_index_by_id()
-        results: list[tuple[int, float]] = []
-        for _, score, payload in raw_results:
-            cid = payload.get("chunk_id", "")
-            idx = id_map.get(cid)
-            if idx is not None:
-                results.append((idx, score))
-        return results
+        raise RuntimeError("Chưa có dense index — chạy `python scripts/build_legal_index.py` hoặc khởi động Qdrant.")
 
     def retrieve_sparse(
         self, query: str, top_k: int = 50, law_ids: set[str] | None = None

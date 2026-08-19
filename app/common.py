@@ -30,10 +30,9 @@ TIER_BADGE = {
     3: "🔵 Tier 3 — rule-based",
 }
 # M5 Generator và Mức 1 Hỏi-đáp (LegalQAModule) dùng cùng khung BaseModule 3-tier
-# nhưng Tier 1 của 2 module này là gọi Claude API (đề cương RAG+LLM), KHÔNG phải
-# checkpoint tự fine-tune như M2 NER/M6 Compliance — nhãn riêng để không gây hiểu nhầm.
+# với Tier 1 = LLM Gateway (WokuShop, OpenAI, Anthropic, DeepSeek).
 TIER_BADGE_CLAUDE = {
-    1: "🟢 Tier 1 — Claude API",
+    1: "🟢 Tier 1 — LLM Gateway (WokuShop/Claude/OpenAI)",
     2: "🟡 Tier 2 — dự phòng (chưa dùng)",
     3: "🔵 Tier 3 — template/trích dẫn không qua LLM",
 }

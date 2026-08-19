@@ -7,7 +7,7 @@ ner:
   labels: ["PACKAGE_NAME", "VALUE", "FUNDING", "METHOD", "CONTRACT_TYPE", "DURATION", "INVESTOR", "LOCATION"]
 
 generator:
-  claude_model: "claude-sonnet-5"
+  claude_model: "claude-3-5-sonnet-20241022"
   # Phát hiện thực tế khi chạy live: 1536 không đủ cho mục dài (bảng điểm kỹ thuật,
   # nhiều điều khoản trích dẫn) — bị cắt cụt giữa câu, có nguy cơ mất nội dung/trích dẫn.
   max_tokens: 4096
@@ -20,10 +20,10 @@ compliance:
   revenue_ratio_threshold: 3.0
 
 # Module Hỏi-đáp RAG+LLM (Mức 1, đề cương RAG+LLM 15 ngày) — khác cơ chế 3-tier "tự train"
-# ở trên: tier 1 = Claude API (đường chính), tier 2 = không dùng (dự phòng cho tương lai),
+# ở trên: tier 1 = LLM Gateway / Claude API (đường chính), tier 2 = không dùng (dự phòng cho tương lai),
 # tier 3 = liệt kê trích dẫn không qua LLM (luôn thành công, không cần API key).
 qa:
-  claude_model: "claude-sonnet-5"
+  claude_model: "claude-3-5-sonnet-20241022"
   embedding_model_key: "vi_bi_encoder"
   candidate_k: 50
   top_k_citations: 5
