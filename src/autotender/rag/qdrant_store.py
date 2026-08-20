@@ -91,6 +91,7 @@ class QdrantLegalStore:
         self._cfg = cfg
         self._vector_size = vector_size
         self._client = None  # lazy-connect
+        self._is_available_cache: tuple[bool, float] | None = None
 
     def _get_client(self):
         """Kết nối Qdrant lần đầu khi cần — raise QdrantUnavailableError nếu thất bại."""
@@ -120,11 +121,17 @@ class QdrantLegalStore:
             ) from e
 
     def is_available(self) -> bool:
-        """Kiểm tra nhanh xem Qdrant có đang chạy không (không raise exception)."""
+        """Kiểm tra nhanh xem Qdrant có đang chạy không (có cache 5s tránh timeout lặp lại)."""
+        import time
+        now = time.time()
+        if self._is_available_cache is not None and (now - self._is_available_cache[1]) < 5.0:
+            return self._is_available_cache[0]
         try:
             self._get_client()
+            self._is_available_cache = (True, now)
             return True
         except QdrantUnavailableError:
+            self._is_available_cache = (False, now)
             return False
 
     def collection_exists(self) -> bool:

@@ -18,7 +18,8 @@ data/processed/*
 
 # index RAG (FAISS) — build lại bằng scripts/build_legal_index.py, không commit binary
 data/index/*
-
+reports/*
+!reports/*.md
 reports/*.json
 reports/figures/*
 !reports/figures/.gitkeep

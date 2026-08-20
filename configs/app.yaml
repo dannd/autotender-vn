@@ -39,9 +39,40 @@ embedding:
   vector_size: 1024
   batch_size: 8
 
+llm_gateway:
+  base_url: "https://llm.wokushop.com/v1"   # ghi đè bằng LLM_BASE_URL
+  default_model: "claude-3-5-sonnet-20241022"  # ghi đè bằng LLM_MODEL
+  timeout_seconds: 60
+  usd_cap_per_process: 5.0
+  pricing_usd_per_mtok:
+    claude-3-5-sonnet-20241022:
+      input_usd_per_mtok: 3.0
+      output_usd_per_mtok: 15.0
+    claude-sonnet-4-5-20250929:
+      input_usd_per_mtok: 3.0
+      output_usd_per_mtok: 15.0
+    claude-sonnet-5:
+      input_usd_per_mtok: 3.0
+      output_usd_per_mtok: 15.0
+    claude-haiku-4-5-20251001:
+      input_usd_per_mtok: 1.0
+      output_usd_per_mtok: 5.0
+    deepseek-chat:
+      input_usd_per_mtok: 0.14
+      output_usd_per_mtok: 0.28
+    gpt-4o:
+      input_usd_per_mtok: 2.5
+      output_usd_per_mtok: 10.0
+    gpt-4o-mini:
+      input_usd_per_mtok: 0.15
+      output_usd_per_mtok: 0.60
+
 claude_budget:
   usd_cap_per_process: 5.0
   pricing_usd_per_mtok:
+    claude-3-5-sonnet-20241022:
+      input_usd_per_mtok: 3.0
+      output_usd_per_mtok: 15.0
     claude-sonnet-5:
       input_usd_per_mtok: 3.0
       output_usd_per_mtok: 15.0

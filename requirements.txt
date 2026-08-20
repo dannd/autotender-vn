@@ -60,7 +60,9 @@ faiss-cpu==1.15.0
 # Dùng qua sentence-transformers interface (huggingface: dxtech-asia/deepx-embedding-v1).
 # Model sẽ tự download từ HuggingFace lần đầu dùng (~1.5GB).
 
-# --- LLM (RAG+LLM redesign — dùng có sẵn, không tự train) ---
+# --- LLM (Universal OpenAI-compatible Gateway / Anthropic / WokuShop) ---
+openai>=1.40.0
+tenacity>=9.0.0
 anthropic==0.120.2
 python-dotenv==1.2.2
 

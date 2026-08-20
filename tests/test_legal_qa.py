@@ -62,7 +62,7 @@ def test_ask_uses_claude_when_available(monkeypatch, retriever):
     answer = module.ask("Hồ sơ mời thầu gồm những gì?")
 
     assert module.active_tier == 1
-    assert answer.model_used == "claude-sonnet-5"
+    assert "claude" in answer.model_used.lower()
     assert "Claude" in answer.answer
     assert len(answer.citations) == 1
     assert answer.citations[0].dieu_so == 44

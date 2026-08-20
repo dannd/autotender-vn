@@ -46,33 +46,34 @@ st.caption(
 )
 
 st.divider()
-st.subheader("M4 — Retriever (RAG+LLM redesign)")
+st.divider()
+st.subheader("M4 — Retriever (Qdrant Vector DB + BM25)")
 retriever = orch.retriever
 c1, c2, c3 = st.columns(3)
 c1.metric("Model embedding", retriever.model_key)
 c2.metric("Số chunk trong kho tri thức", retriever.num_chunks)
-c3.metric("FAISS (dense) đã build", "✅" if retriever.has_dense_index else "❌ (chỉ BM25)")
+c3.metric("Qdrant Dense Index", "✅ Đã kết nối" if retriever.has_dense_index else "⚠️ BM25-only (Qdrant offline)")
 if not retriever.has_dense_index:
-    st.warning("Chưa có FAISS index — chạy `python scripts/build_legal_index.py` để có truy xuất dense/hybrid đầy đủ.")
+    st.info("Qdrant đang offline hoặc chưa ingest — hệ thống tự động chạy ở chế độ dự phòng BM25-only.")
 
 st.divider()
-st.subheader("M5 — Generator (RAG+LLM redesign)")
+st.subheader("M5 — Generator (Universal LLM Gateway / WokuShop / Claude / OpenAI)")
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Model Claude", cfg.generator.get("claude_model", "-"))
-c2.metric("Claude API đã cấu hình", "✅" if is_claude_configured() else "❌ (dùng template dự phòng)")
-c3.metric("Tier chạy lần gần nhất", orch.generator.active_tier or "-")
-budget_cap = get_app_settings().claude_budget.usd_cap_per_process
-c4.metric("Chi phí ước tính (process này)", f"${get_session_cost_usd():.3f} / ${budget_cap:.2f}")
+c1.metric("LLM Model", cfg.generator.get("claude_model", "-"))
+c2.metric("API Key đã cấu hình", "✅" if is_claude_configured() else "❌ (dùng template dự phòng)")
+c3.metric("Tier chạy gần nhất", orch.generator.active_tier or "-")
+budget_cap = get_app_settings().llm_gateway.usd_cap_per_process
+c4.metric("Chi phí ước tính", f"${get_session_cost_usd():.3f} / ${budget_cap:.2f}")
+
+base_url = get_app_settings().llm_gateway.base_url
 st.caption(
-    "Chi phí tính từ lúc process hiện tại khởi động, dùng giá cấu hình ở "
-    "`claude_budget.pricing_usd_per_mtok` (configs/app.yaml) — ước tính, không thay thế hoá đơn thật "
-    "từ Anthropic. Chạm trần sẽ tự động chuyển sang phương án dự phòng (không crash), xem "
-    "`generation/claude_client.py::BudgetExceededError`."
+    f"Gateway Endpoint: `{base_url}` | Chi phí tính từ lúc process khởi động. "
+    "Chạm trần sẽ tự động chuyển sang phương án dự phòng (không crash)."
 )
 if not is_claude_configured():
     st.info(
-        "Chưa cấu hình `ANTHROPIC_API_KEY` — Mức 1/Mức 2 vẫn chạy được nhưng chỉ liệt kê "
-        "trích dẫn/template-filling, không có câu trả lời/nội dung tổng hợp bằng Claude."
+        "Chưa cấu hình `LLM_API_KEY` (hoặc `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) — "
+        "Mức 1/Mức 2 vẫn chạy được nhưng dùng trích dẫn/template-filling dự phòng."
     )
 
 st.divider()
