@@ -41,7 +41,7 @@ embedding:
 
 llm_gateway:
   base_url: "https://llm.wokushop.com/v1"   # ghi đè bằng LLM_BASE_URL
-  default_model: "claude-3-5-sonnet-20241022"  # ghi đè bằng LLM_MODEL
+  default_model: "claude-sonnet-4-5-20250929"  # ghi đè bằng LLM_MODEL
   timeout_seconds: 60
   usd_cap_per_process: 5.0
   pricing_usd_per_mtok:

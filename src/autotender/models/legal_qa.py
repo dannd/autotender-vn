@@ -12,6 +12,7 @@ Tier 3: liệt kê trích dẫn không qua LLM — không cần API key, LUÔN T
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 
 from autotender.config import get_models_settings
@@ -95,7 +96,15 @@ class LegalQAModule(BaseModule[QAAnswer]):
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan.")
 
-        model = self._cfg.get("claude_model") or self._cfg.get("model") or "claude-3-5-sonnet-20241022"
+        from autotender.config import get_app_settings
+        app_cfg = get_app_settings()
+        model = (
+            os.environ.get("LLM_MODEL")
+            or getattr(app_cfg.llm_gateway, "default_model", None)
+            or self._cfg.get("claude_model")
+            or self._cfg.get("model")
+            or "claude-sonnet-4-5-20250929"
+        )
         try:
             answer_text = call_claude(
                 system=_SYSTEM_PROMPT,

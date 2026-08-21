@@ -19,6 +19,7 @@ thật (chậm, cần corpus + embedding model).
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 
@@ -352,7 +353,15 @@ class GeneratorModule(BaseModule[GeneratedSection]):
         if not citations:
             raise TierUnavailableError("Không truy xuất được trích đoạn nào liên quan cho mục này.")
 
-        model = self._cfg.get("claude_model") or self._cfg.get("model") or "claude-3-5-sonnet-20241022"
+        from autotender.config import get_app_settings
+        app_cfg = get_app_settings()
+        model = (
+            os.environ.get("LLM_MODEL")
+            or getattr(app_cfg.llm_gateway, "default_model", None)
+            or self._cfg.get("claude_model")
+            or self._cfg.get("model")
+            or "claude-sonnet-4-5-20250929"
+        )
         prompt = self._build_prompt(section_id, fields, citations, self._retriever)
         try:
             text = call_claude(
