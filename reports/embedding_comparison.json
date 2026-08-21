@@ -1,0 +1,20 @@
+{
+  "deepx_embedding_v1": {
+    "dim": 1024,
+    "intra_mean": 0.7812,
+    "inter_mean": 0.5428,
+    "separation": 0.2384
+  },
+  "vi_bi_encoder": {
+    "dim": 768,
+    "intra_mean": 0.7125,
+    "inter_mean": 0.5289,
+    "separation": 0.1836
+  },
+  "multilingual_minilm": {
+    "dim": 384,
+    "intra_mean": 0.6841,
+    "inter_mean": 0.5167,
+    "separation": 0.1674
+  }
+}

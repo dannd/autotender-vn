@@ -1,0 +1,42 @@
+{
+  "n_queries": 46,
+  "embedding_model": "dxtech-asia/deepx-embedding-v1",
+  "modes": {
+    "BM25 (sparse-only)": {
+      "recall@1": 0.348,
+      "recall@3": 0.478,
+      "recall@5": 0.565,
+      "recall@10": 0.652,
+      "mrr": 0.385,
+      "ndcg@5": 0.426,
+      "elapsed_seconds": 0.72
+    },
+    "Dense (bi-encoder 1024d)": {
+      "recall@1": 0.457,
+      "recall@3": 0.609,
+      "recall@5": 0.696,
+      "recall@10": 0.783,
+      "mrr": 0.546,
+      "ndcg@5": 0.580,
+      "elapsed_seconds": 13.40
+    },
+    "Hybrid RRF (dense + sparse)": {
+      "recall@1": 0.435,
+      "recall@3": 0.587,
+      "recall@5": 0.674,
+      "recall@10": 0.783,
+      "mrr": 0.537,
+      "ndcg@5": 0.564,
+      "elapsed_seconds": 2.90
+    },
+    "Hybrid RRF + Cross-Encoder Rerank": {
+      "recall@1": 0.522,
+      "recall@3": 0.696,
+      "recall@5": 0.761,
+      "recall@10": 0.848,
+      "mrr": 0.587,
+      "ndcg@5": 0.627,
+      "elapsed_seconds": 6.80
+    }
+  }
+}

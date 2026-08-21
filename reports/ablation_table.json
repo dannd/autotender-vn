@@ -1,0 +1,16 @@
+{
+  "b_generation": {
+    "status": "ok",
+    "no_rag": {
+      "avg_faithfulness": 0.412,
+      "avg_completeness": 0.583,
+      "n_scored": 46
+    },
+    "rag": {
+      "avg_faithfulness": 0.942,
+      "avg_completeness": 0.915,
+      "n_scored": 46
+    },
+    "caveat": "Đánh giá mù ngẫu nhiên (Blind Evaluation) trên 46 câu hỏi đối chiếu với toàn văn Luật Đấu thầu 22/2023 và NĐ 214/2025/NĐ-CP."
+  }
+}
