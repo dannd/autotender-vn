@@ -3,7 +3,7 @@ name = "autotender-vn"
 version = "0.2.0"
 description = "Deep Learning tự động soạn thảo Hồ sơ mời thầu (E-HSMT) tại Việt Nam"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # --- GUI ---
     # streamlit 1.60.x có conflict với qdrant-client qua urllib3 — nới lỏng để uv giải quyết
@@ -65,11 +65,19 @@ deepx = [
 [tool.uv]
 # uv dùng pyproject.toml làm nguồn truth duy nhất cho dependencies.
 # Chạy `uv sync` để cài, `uv lock` để tạo/cập nhật lockfile.
-# requirements.txt vẫn giữ cho tương thích ngược với Dockerfile pip-based.
-#
-# PyTorch CPU-only index — cần thêm khi resolve để tránh tải CUDA build (~3GB).
-# index-strategy = unsafe-best-match cho phép uv tìm package từ nhiều index
-# (cần thiết vì urllib3 xuất hiện cả ở PyPI và PyTorch index với version khác nhau).
+
+# Override version pin của vietocr (einops==0.2.0) để tương thích với deepx (einops>=0.8.0)
+override-dependencies = [
+    "einops>=0.8.0",
+]
+
+# Giới hạn môi trường target cho macOS (Apple Silicon) và Linux
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux'",
+]
+
+# PyTorch CPU-only index settings
 index-url = "https://pypi.org/simple"
 extra-index-url = ["https://download.pytorch.org/whl/cpu"]
 index-strategy = "unsafe-best-match"

@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/autotender/__init__.py
+src/autotender/api.py
 src/autotender/config.py
 src/autotender/schemas.py
 src/autotender/audit/__init__.py
@@ -23,6 +24,7 @@ src/autotender/export/print.py
 src/autotender/generation/__init__.py
 src/autotender/generation/claude_client.py
 src/autotender/generation/law_classifier.py
+src/autotender/generation/llm_client.py
 src/autotender/generation/query_rewrite.py
 src/autotender/hitl/__init__.py
 src/autotender/hitl/feedback.py
@@ -34,6 +36,7 @@ src/autotender/ingest/pdf_reader.py
 src/autotender/ingest/synth_document.py
 src/autotender/knowledge/__init__.py
 src/autotender/knowledge/legal_fetch.py
+src/autotender/knowledge/manager.py
 src/autotender/models/__init__.py
 src/autotender/models/base.py
 src/autotender/models/compliance.py
@@ -49,6 +52,7 @@ src/autotender/rag/embedding_models.py
 src/autotender/rag/hybrid_retriever.py
 src/autotender/rag/index.py
 src/autotender/rag/qdrant_store.py
+src/autotender/rag/qdrant_store_khlcnt.py
 src/autotender/rag/rerank.py
 src/autotender/utils/__init__.py
 src/autotender/utils/console.py
