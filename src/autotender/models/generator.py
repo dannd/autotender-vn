@@ -42,11 +42,11 @@ from autotender.utils.vn_text import format_vn_number
 # models/compliance.py::REQUIRED_HSMT_COMPONENTS) — điểm g "hồ sơ, bản vẽ khác (nếu có)"
 # không map 1-1 với 1 chương chuẩn nào nên không có mục riêng.
 SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
-    # Chương I — Chỉ dẫn nhà thầu (CDNT): Điều 26 Khoản 2 điểm a.
+    # Chương I — Chỉ dẫn nhà thầu (CDNT): Điều 26 Khoản 2 điểm a Nghị định 214/2025/NĐ-CP & Nghị định 73/2019/NĐ-CP.
     "chuong_I.muc_1": {
         "chapter": "Chương I — Chỉ dẫn nhà thầu",
         "title": "Quy định chung",
-        "query": "phạm vi áp dụng nguồn vốn tư cách hợp lệ của nhà thầu",
+        "query": "phạm vi áp dụng nguồn vốn tư cách hợp lệ của nhà thầu đầu tư ứng dụng công nghệ thông tin",
     },
     "chuong_I.muc_2": {
         "chapter": "Chương I — Chỉ dẫn nhà thầu",
@@ -61,14 +61,13 @@ SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
     "chuong_I.muc_4": {
         "chapter": "Chương I — Chỉ dẫn nhà thầu",
         "title": "Thương thảo, hoàn thiện và ký kết hợp đồng",
-        "query": "thương thảo hợp đồng hoàn thiện ký kết hợp đồng điều kiện ký kết",
+        "query": "thương thảo hợp đồng hoàn thiện ký kết hợp đồng điều kiện ký kết chuyển giao công nghệ",
     },
-    # Chương II — Bảng dữ liệu đấu thầu (BDL): số liệu cụ thể tương ứng Chương I — Điều 26
-    # Khoản 2 điểm b. Bản chất là bảng tham số, không phải văn xuôi — xem `hint`.
+    # Chương II — Bảng dữ liệu đấu thầu (BDL): số liệu cụ thể tương ứng Chương I — Điều 26 Khoản 2 điểm b.
     "chuong_II.muc_1": {
         "chapter": "Chương II — Bảng dữ liệu đấu thầu",
         "title": "Thông tin chung về gói thầu",
-        "query": "tên gói thầu nguồn vốn hình thức lựa chọn nhà thầu phương thức đấu thầu",
+        "query": "tên gói thầu nguồn vốn hình thức lựa chọn nhà thầu phương thức đấu thầu công nghệ thông tin",
         "hint": (
             "Trình bày dạng danh sách các mục dữ liệu — mỗi dòng là 1 mục tương ứng nội dung "
             "đã nêu ở Chương I (\"Tên mục dữ liệu: giá trị áp dụng cho gói thầu này\"), lấy "
@@ -78,34 +77,43 @@ SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
     "chuong_II.muc_2": {
         "chapter": "Chương II — Bảng dữ liệu đấu thầu",
         "title": "Bảo đảm dự thầu, bảo đảm thực hiện hợp đồng và tiến độ đấu thầu",
-        "query": "giá trị bảo đảm dự thầu bảo đảm thực hiện hợp đồng thời hạn hiệu lực",
+        "query": "giá trị bảo đảm dự thầu bảo đảm thực hiện hợp đồng thời hạn hiệu lực tiến độ",
         "hint": (
             "Trình bày dạng danh sách các mục dữ liệu (giá trị bảo đảm dự thầu, bảo đảm thực "
             "hiện hợp đồng, thời hạn hiệu lực hồ sơ dự thầu...), KHÔNG viết văn xuôi diễn giải."
         ),
     },
+    # Chương III — Tiêu chuẩn đánh giá E-HSDT
     "chuong_III.muc_1": {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
         "title": "Tiêu chuẩn đánh giá về năng lực và kinh nghiệm",
-        "query": "tiêu chuẩn năng lực kinh nghiệm doanh thu nhà thầu",
+        "query": "tiêu chuẩn năng lực kinh nghiệm doanh thu nhà thầu hợp đồng tương tự phần mềm công nghệ thông tin",
+        "hint": (
+            "Xác định rõ yêu cầu về năng lực tài chính (doanh thu bình quân, tài sản ròng) và kinh nghiệm "
+            "thực hiện hợp đồng tương tự về xây dựng, phát triển phần mềm/hệ thống CNTT theo đúng Thông tư 22/2024/TT-BKHĐT."
+        ),
     },
     "chuong_III.muc_2": {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
-        "title": "Tiêu chuẩn đánh giá về kỹ thuật",
-        "query": "tiêu chuẩn đánh giá kỹ thuật giải pháp nhân sự",
+        "title": "Tiêu chuẩn đánh giá về kỹ thuật và nhân sự chủ chốt",
+        "query": "tiêu chuẩn đánh giá kỹ thuật nhân sự chủ chốt giám đốc dự án PMP kiến trúc sư giải pháp an toàn thông tin CISSP kiểm thử phần mềm",
+        "hint": (
+            "Quy định chi tiết tiêu chuẩn đánh giá giải pháp kỹ thuật, phương án triển khai, phương án bảo đảm an toàn thông tin "
+            "theo Nghị định 85/2016/NĐ-CP và tiêu chuẩn nhân sự chủ chốt ngành CNTT: Giám đốc quản lý dự án (PMP/Scrum Master), "
+            "Kiến trúc sư giải pháp (Solution Architect), Chuyên gia An toàn thông tin (CISSP/CEH/Security+), Kỹ sư phát triển chính."
+        ),
     },
     "chuong_III.muc_3": {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
         "title": "Tiêu chuẩn đánh giá về giá",
-        "query": "giá dự thầu xếp hạng đánh giá giá",
+        "query": "giá dự thầu phương pháp kết hợp kỹ thuật và giá xếp hạng đánh giá chi phí phần mềm",
     },
     "chuong_III.muc_4": {
         "chapter": "Chương III — Tiêu chuẩn đánh giá E-HSDT",
         "title": "Yêu cầu về nhãn hiệu, xuất xứ hàng hóa",
-        "query": "nhãn hiệu xuất xứ hàng hóa tương đương",
+        "query": "nhãn hiệu xuất xứ hàng hóa tương đương chuẩn mở công nghệ không khóa nhà cung cấp",
     },
-    # Chương IV — Biểu mẫu mời thầu và dự thầu: mẫu để NHÀ THẦU điền khi nộp E-HSDT, KHÔNG
-    # phải nội dung do bên mời thầu tự thuật — Điều 26 Khoản 2 điểm d. Xem `hint`.
+    # Chương IV — Biểu mẫu mời thầu và dự thầu
     "chuong_IV.muc_1": {
         "chapter": "Chương IV — Biểu mẫu mời thầu và dự thầu",
         "title": "Mẫu đơn dự thầu và giấy uỷ quyền",
@@ -125,61 +133,79 @@ SECTION_DEFINITIONS: dict[str, dict[str, str]] = {
             "\"[TÊN NHÀ THẦU]\", \"[TÊN NGÂN HÀNG]\" cho thông tin chưa biết trước, KHÔNG tự bịa."
         ),
     },
+    # Chương V — Yêu cầu về kỹ thuật
     "chuong_V.muc_1": {
         "chapter": "Chương V — Yêu cầu về kỹ thuật",
-        "title": "Phạm vi cung cấp",
-        "query": "phạm vi cung cấp lắp đặt đào tạo bảo hành",
+        "title": "Phạm vi cung cấp và phát triển phần mềm",
+        "query": "phạm vi cung cấp thiết kế chi tiết phần mềm nội bộ khảo sát lập trình kiểm thử UAT đào tạo chuyển giao công nghệ Nghị định 73 2019",
+        "hint": (
+            "Mô tả chi tiết phạm vi các hạng mục công việc phát triển phần mềm theo Nghị định 73/2019/NĐ-CP và Nghị định 82/2024/NĐ-CP: "
+            "khảo sát, thiết kế chi tiết, lập trình, kiểm thử đơn vị, kiểm thử tích hợp, kiểm thử chấp nhận UAT, đào tạo và chuyển giao mã nguồn."
+        ),
     },
     "chuong_V.muc_2": {
         "chapter": "Chương V — Yêu cầu về kỹ thuật",
-        "title": "Yêu cầu về thông số kỹ thuật",
-        "query": "thông số kỹ thuật tương đương sản phẩm cụ thể",
+        "title": "Yêu cầu về thông số kỹ thuật và An toàn thông tin",
+        "query": "thông số kỹ thuật kiến trúc phần mềm API RESTful an toàn thông tin theo cấp độ Nghị định 85 2016 TCVN 11930 mã hóa TLS",
+        "hint": (
+            "Quy định đầy đủ yêu cầu chức năng, yêu cầu phi chức năng (hiệu năng, tải đồng thời, độ sẵn sàng) và yêu cầu bắt buộc về "
+            "bảo đảm an toàn hệ thống thông tin theo cấp độ theo Nghị định số 85/2016/NĐ-CP, tiêu chuẩn TCVN 11930:2017 (xác thực đa yếu tố MFA, mã hóa TLS 1.3/AES-256, kiểm thử lỗ hổng bảo mật OWASP)."
+        ),
     },
     "chuong_V.muc_3": {
         "chapter": "Chương V — Yêu cầu về kỹ thuật",
-        "title": "Yêu cầu về bảo hành, bảo trì",
-        "query": "bảo hành bảo trì phụ tùng thay thế",
+        "title": "Yêu cầu về bảo hành, bảo trì và cam kết mức độ dịch vụ (SLA)",
+        "query": "bảo hành bảo trì phần mềm cam kết mức độ dịch vụ SLA thời gian khắc phục sự cố hỗ trợ kỹ thuật",
+        "hint": (
+            "Quy định thời gian bảo hành tối thiểu 12-24 tháng theo Nghị định 73/2019/NĐ-CP, cam kết mức độ dịch vụ hỗ trợ (SLA) "
+            "phản hồi trong 02-04 giờ đối với sự cố nghiêm trọng, hỗ trợ kỹ thuật 24/7 và nâng cấp bản vá bảo mật định kỳ."
+        ),
     },
     "chuong_V.muc_4": {
         "chapter": "Chương V — Yêu cầu về kỹ thuật",
-        "title": "Yêu cầu về tiến độ thực hiện",
-        "query": "tiến độ thực hiện hợp đồng mốc bàn giao",
+        "title": "Yêu cầu về tiến độ thực hiện và kế hoạch bàn giao",
+        "query": "tiến độ thực hiện hợp đồng mốc bàn giao sản phẩm phần mềm nghiệm thu",
     },
-    # Chương VI — Điều kiện chung của hợp đồng (ĐKC): quy định chung, không phụ thuộc đặc
-    # thù từng gói thầu — Điều 26 Khoản 2 điểm e.
+    # Chương VI — Điều kiện chung của hợp đồng (ĐKC)
     "chuong_VI.muc_1": {
         "chapter": "Chương VI — Điều kiện chung của hợp đồng",
         "title": "Định nghĩa, phạm vi và loại hợp đồng",
-        "query": "loại hợp đồng hồ sơ hợp đồng định nghĩa giải thích từ ngữ",
+        "query": "loại hợp đồng hồ sơ hợp đồng định nghĩa giải thích từ ngữ dịch vụ phần mềm công nghệ thông tin",
     },
     "chuong_VI.muc_2": {
         "chapter": "Chương VI — Điều kiện chung của hợp đồng",
-        "title": "Quyền và nghĩa vụ của các bên",
-        "query": "quyền nghĩa vụ chủ đầu tư nhà thầu nguyên tắc thực hiện hợp đồng",
+        "title": "Quyền và nghĩa vụ của các bên về Sở hữu trí tuệ và Mã nguồn",
+        "query": "quyền nghĩa vụ chủ đầu tư nhà thầu sở hữu trí tuệ bản quyền toàn bộ mã nguồn source code cơ sở dữ liệu Nghị định 73 2019",
+        "hint": (
+            "Quy định rõ: Chủ đầu tư là chủ sở hữu duy nhất đối với toàn bộ mã nguồn (source code), cơ sở dữ liệu và tài liệu kỹ thuật "
+            "hình thành từ hợp đồng theo Điều 55 Nghị định 73/2019/NĐ-CP; nhà thầu không được giữ bản quyền độc quyền hay cài đặt mã độc, backdoor."
+        ),
     },
     "chuong_VI.muc_3": {
         "chapter": "Chương VI — Điều kiện chung của hợp đồng",
         "title": "Sửa đổi, thanh lý hợp đồng và xử lý vi phạm",
-        "query": "sửa đổi hợp đồng thanh lý hợp đồng xử lý vi phạm",
+        "query": "sửa đổi hợp đồng thanh lý hợp đồng xử lý vi phạm phạt vi phạm hợp đồng",
     },
-    # Chương VII — Điều kiện cụ thể của hợp đồng (ĐKCT): TUỲ BIẾN theo từng gói thầu (cùng
-    # tinh thần Chương III/V — cần phán đoán, không phải boilerplate thuần như Chương VI).
+    # Chương VII — Điều kiện cụ thể của hợp đồng (ĐKCT)
     "chuong_VII.muc_1": {
         "chapter": "Chương VII — Điều kiện cụ thể của hợp đồng",
         "title": "Điều khoản cụ thể về giá, thanh toán và tiến độ",
-        "query": "đồng tiền thanh toán tạm ứng thanh toán hợp đồng điều chỉnh giá",
+        "query": "đồng tiền thanh toán tạm ứng thanh toán hợp đồng điều chỉnh giá mốc nghiệm thu",
     },
     "chuong_VII.muc_2": {
         "chapter": "Chương VII — Điều kiện cụ thể của hợp đồng",
-        "title": "Điều khoản cụ thể về bảo hành, bảo trì và nghiệm thu",
-        "query": "bảo hành bảo trì nghiệm thu chất lượng hàng hóa dịch vụ",
+        "title": "Điều khoản cụ thể về bảo hành, bảo mật và bàn giao toàn bộ mã nguồn",
+        "query": "bảo hành bảo trì nghiệm thu bàn giao mã nguồn tài liệu thiết kế an toàn thông tin bảo mật dữ liệu",
+        "hint": (
+            "Quy định chi tiết điều kiện nghiệm thu bàn giao trọn bộ: mã nguồn sạch có chú thích, kịch bản CI/CD, cơ sở dữ liệu, "
+            "tài liệu kiến trúc và hướng dẫn quản trị; cam kết bảo mật thông tin (NDA) và nghĩa vụ bảo hành 12 tháng."
+        ),
     },
-    # Chương VIII — Biểu mẫu hợp đồng: mẫu để ký với NHÀ THẦU TRÚNG THẦU, KHÔNG phải nội
-    # dung do bên mời thầu tự thuật — Điều 26 Khoản 2 điểm e. Xem `hint`.
+    # Chương VIII — Biểu mẫu hợp đồng
     "chuong_VIII.muc_1": {
         "chapter": "Chương VIII — Biểu mẫu hợp đồng",
         "title": "Mẫu hợp đồng và phụ lục hợp đồng",
-        "query": "hợp đồng đối với nhà thầu được lựa chọn nội dung hợp đồng ký kết",
+        "query": "hợp đồng đối với nhà thầu được lựa chọn nội dung hợp đồng ký kết chuyển giao phần mềm",
         "hint": (
             "Soạn dưới dạng MẪU HỢP ĐỒNG (điều khoản khung) để điền khi ký với nhà thầu trúng "
             "thầu — dùng chỗ trống dạng \"[TÊN NHÀ THẦU TRÚNG THẦU]\", \"[NGÀY KÝ HỢP ĐỒNG]\" "
@@ -249,11 +275,14 @@ def _format_currency(value: str | None) -> str | None:
     return format_vn_number(int(digits)) + " đồng"
 
 
-# Các con số thông dụng trong quy định kỹ thuật / thời hạn / năm ban hành luật — không coi là số liệu tài chính sai lệch
+# Các con số thông dụng trong quy định kỹ thuật / thời hạn / năm ban hành luật / thông số CNTT phổ biến — không coi là số liệu tài chính sai lệch
 _COMMON_SPEC_NUMBERS = {
-    "10", "12", "15", "20", "24", "30", "45", "60", "90", "100", "120", "180", "360", "365",
-    "2020", "2021", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2030",
-    "32", "64", "128", "256", "512", "1024",
+    "1", "2", "3", "4", "5", "7", "10", "12", "14", "15", "20", "24", "30", "45", "60", "90", "100", "120", "180", "360", "365",
+    "2016", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2030",
+    "32", "64", "128", "256", "512", "1024", "2048", "4096",
+    "80", "443", "8080", "3306", "5432", "27017",
+    "73", "82", "85", "214", "22", "30", "11930", "27001",
+    "99", "999", "9999",  # SLA uptime 99.9%, 99.99%
 }
 
 
@@ -262,7 +291,7 @@ def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]
 
     Chỉ gắn cờ R4 với các số liệu tài chính / số liệu lớn (>100.000) hoặc số liệu đặc thù
     xuất hiện trong văn bản mà KHÔNG khớp với KHLCNT, tránh báo động giả với các thông số
-    kỹ thuật phổ biến (bảo hành 24 tháng, RAM 64GB, năm 2025...).
+    kỹ thuật phổ biến (bảo hành 24 tháng, RAM 64GB, năm 2025, cổng 443, SLA 99.9%...).
     """
     known_numbers: set[str] = set()
     for f in fields:
@@ -299,19 +328,17 @@ def verify_numeric_consistency(generated_text: str, fields: list[ExtractedField]
 
 
 _SYSTEM_PROMPT = (
-    "Bạn là trợ lý soạn thảo hồ sơ mời thầu (HSMT) cho gói thầu phần mềm/CNTT tại Việt Nam. "
-    "Hãy soạn nội dung mục được yêu cầu, dựa CHÍNH XÁC vào các trường thông tin gói thầu và "
-    "trích đoạn văn bản pháp luật được cung cấp — KHÔNG bịa số liệu, KHÔNG tự suy diễn điều "
-    "khoản pháp luật ngoài trích đoạn đã cho. Số liệu (giá gói thầu, thời gian, nguồn vốn...) "
+    "Bạn là trợ lý soạn thảo hồ sơ mời thầu (HSMT) chuyên nghiệp cho các gói thầu phần mềm và công nghệ thông tin (CNTT) tại Việt Nam. "
+    "Hãy soạn nội dung mục được yêu cầu, dựa CHÍNH XÁC vào các trường thông tin gói thầu và trích đoạn văn bản pháp luật được cung cấp "
+    "(Luật Đấu thầu số 22/2023/QH15, Nghị định 214/2025/NĐ-CP, Nghị định 73/2019/NĐ-CP, Nghị định 82/2024/NĐ-CP và Nghị định 85/2016/NĐ-CP). "
+    "KHÔNG bịa số liệu, KHÔNG tự suy diễn điều khoản pháp luật ngoài trích đoạn đã cho. Số liệu (giá gói thầu, thời gian thực hiện, nguồn vốn...) "
     "PHẢI lấy nguyên văn từ trường thông tin gói thầu, không tự tính toán hay làm tròn khác đi. "
-    "Ghi rõ nguồn căn cứ pháp lý (vd \"(Điều 44, Luật Đấu thầu 22/2023/QH15)\") khi áp dụng một "
-    "quy định cụ thể. TUYỆT ĐỐI KHÔNG đưa ra tiêu chí mang tính chất hạn chế cạnh tranh hoặc "
-    "tạo lợi thế cho một nhà thầu cụ thể — cấm nêu tên nhãn hiệu/xuất xứ cụ thể, cấm yêu cầu "
-    "năng lực/doanh thu vượt ngưỡng hợp lý so với quy mô gói thầu, cấm mô tả thông số kỹ thuật "
-    "chỉ một sản phẩm/nhà cung cấp mới đáp ứng được (vi phạm nguyên tắc cạnh tranh, công bằng, "
-    "minh bạch — Điều 44 Luật Đấu thầu 22/2023/QH15). Đây là yêu cầu bắt buộc ngay khi soạn, "
-    "không chỉ để hệ thống rà soát lại sau. Trả lời bằng tiếng Việt, văn phong hành chính, "
-    "không thêm lời dẫn/kết thừa."
+    "Ghi rõ nguồn căn cứ pháp lý cụ thể khi áp dụng một quy định (ví dụ: \"(Điều 44 Luật Đấu thầu 22/2023/QH15)\", \"(Điều 55 Nghị định 73/2019/NĐ-CP)\", \"(Nghị định 85/2016/NĐ-CP)\"). "
+    "Đối với gói thầu phần mềm/CNTT, bắt buộc thể hiện rõ các yêu cầu về an toàn thông tin theo cấp độ, tiêu chuẩn nhân sự CNTT chuẩn mực (PMP, Scrum Master, CISSP, Solution Architect), "
+    "và điều khoản bắt buộc bàn giao 100% mã nguồn sạch (clean source code), cơ sở dữ liệu cho Chủ đầu tư. "
+    "TUYỆT ĐỐI KHÔNG đưa ra tiêu chí mang tính chất hạn chế cạnh tranh hoặc tạo lợi thế cho một nhà thầu cụ thể — cấm nêu tên nhãn hiệu/xuất xứ cụ thể mà không có cụm \"hoặc tương đương\", "
+    "cấm yêu cầu năng lực/doanh thu vượt ngưỡng hợp lý so với quy mô gói thầu, cấm mô tả thông số kỹ thuật chỉ một sản phẩm/nhà cung cấp độc quyền mới đáp ứng được. "
+    "Trả lời bằng tiếng Việt, văn phong hành chính công vụ trang trọng, cấu trúc Markdown rõ ràng, không thêm lời dẫn/kết thừa."
 )
 
 

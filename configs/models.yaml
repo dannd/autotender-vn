@@ -42,3 +42,23 @@ qa:
   # bật mặc định hay không — xem docs/DATA_CARD.md Mục 12.3 để biết kết quả cuối cùng.
   use_law_id_filter: false
   classifier_model: "claude-haiku-4-5-20251001"
+
+# Cấu hình tiêu chuẩn nhân sự & đặc tả chuyên ngành CNTT / Phần mềm
+it_specifications:
+  security_levels: ["Cap_1", "Cap_2", "Cap_3", "Cap_4", "Cap_5"]
+  standard_key_personnel:
+    - role: "Project Manager"
+      certs: ["PMP", "PMI-ACP", "Scrum Master"]
+      min_years: 5
+    - role: "Solution Architect"
+      certs: ["TOGAF", "AWS Solutions Architect", "Azure Solutions Architect"]
+      min_years: 5
+    - role: "Cybersecurity Expert"
+      certs: ["CISSP", "CEH", "CompTIA Security+", "CISA"]
+      min_years: 3
+    - role: "Senior Developer / Tech Lead"
+      min_years: 3
+    - role: "QA / Test Lead"
+      certs: ["ISTQB"]
+      min_years: 3
+
