@@ -113,14 +113,14 @@ AutoTender-VN được thiết kế theo mô hình **Deterministic Multi-Stage O
   * Nắm trọn vẹn quy trình 7 bước con người lập, thẩm định và phê duyệt E-HSMT cho gói thầu phần mềm/CNTT sử dụng ngân sách nhà nước.
   * Phân tích và hệ thống hóa **8 bộ văn bản quy phạm pháp luật** (341 Điều): Luật Đấu thầu 22/2023, Nghị định 214/2025, Nghị định 73/2019 & 82/2024 (Quản lý đầu tư ứng dụng CNTT), Nghị định 85/2016 (5 Cấp độ ATTT), Thông tư 22/2024.
 * **Chuyển thể Nghiệp vụ Con người sang Bài toán AI (Human-to-AI Translation):**
-  * *Chuyển thể Cấu trúc Hồ sơ:* Thiết kế cấu trúc **8 Chương I–VIII** theo Điều 26 Nghị định 214/2025/NĐ-CP thành Data Contracts chuẩn Pydantic v2 trong [`src/autotender/schemas.py`](src/autotender/schemas.py).
+  * *Chuyển thể Cấu trúc Hồ sơ:* Thiết kế cấu trúc **8 Chương I–VIII** theo Điều 26 Nghị định 214/2025/NĐ-CP thành Data Contracts chuẩn Pydantic v2 trong `src/autotender/schemas.py`.
   * *Chuyển thể Tiêu chuẩn Kỹ thuật CNTT:* Định nghĩa các yêu cầu bài toán phần mềm: Đặc tả SRS, Kiến trúc mở, SLA hỗ trợ 24/7, An toàn thông tin Cấp độ 3 (NĐ 85) và Điều khoản bắt buộc bàn giao 100% mã nguồn (NĐ 73).
   * *Chuyển thể Quy tắc Kiểm soát Tuân thủ:* Thiết kế bộ logic 5 nhóm cờ vi phạm (R1: Chống chỉ định nhãn hiệu Điều 44, R2: Trần doanh thu $\le 3\times$, R3: Thông số may đo, R4: Sai lệch số liệu, R5: Đủ 8 chương).
 
 #### 2. Tệp Mã Nguồn Phụ trách Trực tiếp
-* [`src/autotender/schemas.py`](src/autotender/schemas.py) — Data contracts trung tâm (`HSMTDocument`, `HSMTSection`, `TenderNotice`, `ExtractedField`).
-* [`configs/models.yaml`](configs/models.yaml) — Cấu hình phạm vi 8 chương và danh mục nhãn hiệu cấm.
-* [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) & [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — Tài liệu đặc tả bài toán và căn cứ pháp lý.
+* `src/autotender/schemas.py` — Data contracts trung tâm (`HSMTDocument`, `HSMTSection`, `TenderNotice`, `ExtractedField`).
+* `configs/models.yaml` — Cấu hình phạm vi 8 chương và danh mục nhãn hiệu cấm.
+* `docs/SYSTEM_DESIGN.md` & `docs/DATA_CARD.md` — Tài liệu đặc tả bài toán và căn cứ pháp lý.
 
 #### 3. Câu hỏi Vấn đáp Hội đồng Thường gặp & Gợi ý Trả lời
 * **Q: Vai trò của bạn trong dự án là gì? Dự án đã giải quyết bài toán nghiệp vụ thực tế như thế nào?**
@@ -148,11 +148,11 @@ AutoTender-VN được thiết kế theo mô hình **Deterministic Multi-Stage O
 * **Hierarchical Legal Chunking:** Phân đoạn cú pháp tự nhiên theo Điều/Khoản bảo toàn ngữ cảnh và siêu dữ liệu.
 
 #### 3. Tệp Mã Nguồn Phụ trách Trực tiếp
-* [`src/autotender/rag/chunker.py`](src/autotender/rag/chunker.py) — Thuật toán bóc tách phân đoạn luật Điều/Khoản.
-* [`src/autotender/models/ner.py`](src/autotender/models/ner.py) — Module bóc tách thực thể KHLCNT.
-* [`src/autotender/crawler/`](src/autotender/crawler/) & [`src/autotender/ingest/`](src/autotender/ingest/) — Thu thập dữ liệu và OCR bản scan.
-* [`data/samples/legal_corpus/`](data/samples/legal_corpus/) — Kho tri thức 8 bộ luật (699 chunks).
-* [`data/eval/`](data/eval/) — Tập dữ liệu 46 câu hỏi benchmark gán nhãn tay.
+* `src/autotender/rag/chunker.py` — Thuật toán bóc tách phân đoạn luật Điều/Khoản.
+* `src/autotender/models/ner.py` — Module bóc tách thực thể KHLCNT.
+* `src/autotender/crawler/` & `src/autotender/ingest/` — Thu thập dữ liệu và OCR bản scan.
+* `data/samples/legal_corpus/` — Kho tri thức 8 bộ luật (699 chunks).
+* `data/eval/` — Tập dữ liệu 46 câu hỏi benchmark gán nhãn tay.
 
 #### 4. Câu hỏi Vấn đáp Hội đồng Thường gặp & Gợi ý Trả lời
 * **Q: Chiến lược Chunking của nhóm khác gì so với các thư viện Chunking thông thường?**
@@ -181,11 +181,11 @@ AutoTender-VN được thiết kế theo mô hình **Deterministic Multi-Stage O
 * **Cấu trúc Đồ thị HNSW:** Thuật toán duyệt đồ thị tìm kiếm láng giềng gần nhất xấp xỉ (ANN) $O(\log N)$.
 
 #### 3. Tệp Mã Nguồn Phụ trách Trực tiếp
-* [`src/autotender/rag/embedding_models.py`](src/autotender/rag/embedding_models.py) — Quản lý mô hình nhúng và vector hóa.
-* [`src/autotender/rag/qdrant_store.py`](src/autotender/rag/qdrant_store.py) — Giao tiếp Qdrant, tìm kiếm HNSW và payload filter.
-* [`src/autotender/rag/bm25.py`](src/autotender/rag/bm25.py) — Chỉ mục tìm kiếm từ khóa BM25.
-* [`docker/embedding/`](docker/embedding/) & [`docker-compose.yml`](docker-compose.yml) — Microservice containerization.
-* [`scripts/ingest_to_qdrant.py`](scripts/ingest_to_qdrant.py) & [`analyze_embeddings.py`](scripts/analyze_embeddings.py).
+* `src/autotender/rag/embedding_models.py` — Quản lý mô hình nhúng và vector hóa.
+* `src/autotender/rag/qdrant_store.py` — Giao tiếp Qdrant, tìm kiếm HNSW và payload filter.
+* `src/autotender/rag/bm25.py` — Chỉ mục tìm kiếm từ khóa BM25.
+* `docker/embedding/` & `docker-compose.yml` — Microservice containerization.
+* `scripts/ingest_to_qdrant.py` & `scripts/analyze_embeddings.py`.
 
 #### 4. Câu hỏi Vấn đáp Hội đồng Thường gặp & Gợi ý Trả lời
 * **Q: Tại sao mô hình nhúng `deepx-embedding-v1` lại giải quyết được bài toán Điều luật dài?**
@@ -213,11 +213,11 @@ AutoTender-VN được thiết kế theo mô hình **Deterministic Multi-Stage O
 * **Decoder-only Transformer & In-Context Learning:** Cơ chế Masked Multi-Head Attention, RoPE, KV-Caching và Grounded Context Injection.
 
 #### 3. Tệp Mã Nguồn Phụ trách Trực tiếp
-* [`src/autotender/rag/hybrid_retriever.py`](src/autotender/rag/hybrid_retriever.py) — Bộ điều phối Hybrid RAG.
-* [`src/autotender/rag/rerank.py`](src/autotender/rag/rerank.py) — Cross-Encoder Transformer Reranker.
-* [`src/autotender/generation/llm_client.py`](src/autotender/generation/llm_client.py) — Universal LLM Gateway & Budget Guard.
-* [`src/autotender/models/generator.py`](src/autotender/models/generator.py) — Bộ sinh 8 Chương HSMT và System Prompts.
-* [`src/autotender/models/orchestrator.py`](src/autotender/models/orchestrator.py) — Điều phối luồng sinh toàn văn bản.
+* `src/autotender/rag/hybrid_retriever.py` — Bộ điều phối Hybrid RAG.
+* `src/autotender/rag/rerank.py` — Cross-Encoder Transformer Reranker.
+* `src/autotender/generation/llm_client.py` — Universal LLM Gateway & Budget Guard.
+* `src/autotender/models/generator.py` — Bộ sinh 8 Chương HSMT và System Prompts.
+* `src/autotender/models/orchestrator.py` — Điều phối luồng sinh toàn văn bản.
 
 #### 4. Câu hỏi Vấn đáp Hội đồng Thường gặp & Gợi ý Trả lời
 * **Q: Tại sao nhóm không sử dụng kiến trúc Autonomous Agentic LLM tự gọi Tool (Function Calling/ReAct) mà dùng Deterministic Orchestrator?**
@@ -248,13 +248,13 @@ AutoTender-VN được thiết kế theo mô hình **Deterministic Multi-Stage O
 * **Human-In-The-Loop (HITL) Design Pattern:** Nguyên lý an toàn phân định quyền hạn: AI hỗ trợ tạo bản thảo, con người chịu trách nhiệm pháp lý và phê duyệt.
 
 #### 3. Tệp Mã Nguồn Phụ trách Trực tiếp
-* [`src/autotender/models/compliance.py`](src/autotender/models/compliance.py) — Bộ quy tắc R1–R5 và `check_it_specific_compliance`.
-* [`src/autotender/hitl/store.py`](src/autotender/hitl/store.py) — Quản lý trạng thái phê duyệt SQLite.
-* [`src/autotender/auth/`](src/autotender/auth/) & [`src/autotender/audit/`](src/autotender/audit/) — Xác thực PBKDF2 và Audit log bất biến.
-* [`src/autotender/export/docx.py`](src/autotender/export/docx.py) & [`pdf.py`](src/autotender/export/pdf.py) — Xuất file DOCX chuẩn NĐ 30/2020.
-* [`src/autotender/eval/faithfulness_eval.py`](src/autotender/eval/faithfulness_eval.py) — Đánh giá độ trung thực LLM-as-a-judge.
-* [`app/pages/`](app/pages/) — 8 trang giao diện Streamlit.
-* [`tests/`](tests/) — Bộ 164 bài kiểm thử tự động.
+* `src/autotender/models/compliance.py` — Bộ quy tắc R1–R5 và `check_it_specific_compliance`.
+* `src/autotender/hitl/store.py` — Quản lý trạng thái phê duyệt SQLite.
+* `src/autotender/auth/` & `src/autotender/audit/` — Xác thực PBKDF2 và Audit log bất biến.
+* `src/autotender/export/docx.py` & `pdf.py` — Xuất file DOCX chuẩn NĐ 30/2020.
+* `src/autotender/eval/faithfulness_eval.py` — Đánh giá độ trung thực LLM-as-a-judge.
+* `app/pages/` — 8 trang giao diện Streamlit.
+* `tests/` — Bộ 164 bài kiểm thử tự động.
 
 #### 4. Câu hỏi Vấn đáp Hội đồng Thường gặp & Gợi ý Trả lời
 * **Q: Làm sao hệ thống đảm bảo an toàn pháp lý khi đưa vào cơ quan nhà nước thực tế?**
