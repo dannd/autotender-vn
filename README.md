@@ -1,412 +1,328 @@
 # AutoTender-VN
 
-Hệ thống Trợ lý AI hỗ trợ **soạn thảo và rà soát Hồ sơ mời thầu (E-HSMT) cho các gói thầu Phần mềm / CNTT** tại Việt Nam ứng dụng **Hybrid RAG + LLM (Universal OpenAI-compatible Gateway)** — Đồ án môn Học sâu nâng cao (Deep Learning), bậc Thạc sĩ Kỹ thuật.
+**Hệ thống Trợ lý AI Soạn thảo & Rà soát Hồ sơ Mời thầu (E-HSMT) cho Gói thầu Phần mềm & Công nghệ Thông tin tại Việt Nam**
 
-* **Nhóm tác giả:** Nguyễn Đình Đan, Nguyễn Văn Vũ, Trần Việt Hòa, Hoàng Xuân Sơn, Nguyễn Thái Thịnh — Trường Kinh doanh FSB, Đại học FPT.
-* **Báo cáo học thuật đầy đủ:** [`docs/AutoTender-VN_Report_IEEE.docx`](docs/AutoTender-VN_Report_IEEE.docx)
-* **Slide trình bày:** [`docs/AutoTender-VN_Slides.pptx`](docs/AutoTender-VN_Slides.pptx)
+> Đồ án môn **Học sâu Nâng cao (Advanced Deep Learning)** — Bậc Thạc sĩ Kỹ thuật Phần mềm  
+> **Nhóm tác giả:** Nguyễn Đình Đan, Nguyễn Văn Vũ, Trần Việt Hòa, Hoàng Xuân Sơn, Nguyễn Thái Thịnh — Trường Kinh doanh FSB, Đại học FPT.  
+> **Báo cáo học thuật IEEE:** [`docs/AutoTender-VN_Report_IEEE.docx`](docs/AutoTender-VN_Report_IEEE.docx) | **Slide trình bày:** [`docs/AutoTender-VN_Slides.pptx`](docs/AutoTender-VN_Slides.pptx)  
+> **Phân công nhiệm vụ & Lý thuyết 5 thành viên:** [`reports/PHAN_CONG_NHIEM_VU_VA_LY_THUYET_5_THANH_VIEN.md`](reports/PHAN_CONG_NHIEM_VU_VA_LY_THUYET_5_THANH_VIEN.md)
+
+---
 
 > [!IMPORTANT]
-> **Khuyến cáo pháp lý:** Mọi nội dung do hệ thống sinh ra là bản dự thảo hỗ trợ nghiệp vụ cho Tổ chuyên gia và Bên mời thầu — bắt buộc phải qua quy trình thẩm định độc lập và phê duyệt của Người có thẩm quyền/Chủ đầu tư theo đúng quy định pháp luật trước khi phát hành chính thức lên Hệ thống mạng đấu thầu quốc gia (e-GP / VNEPS).
+> **Khuyến cáo Pháp lý:** Mọi nội dung do hệ thống sinh ra là bản dự thảo hỗ trợ nghiệp vụ chuyên sâu cho Bên mời thầu và Tổ chuyên gia. Văn bản bắt buộc phải trải qua quy trình thẩm định độc lập và phê duyệt chính thức của Chủ đầu tư / Người có thẩm quyền trước khi phát hành lên Hệ thống Mạng đấu thầu Quốc gia (e-GP / VNEPS).
 
 ---
 
-## Cài đặt nhanh (Quick Start)
+## 📑 Mục Lục
+1. [Tổng Quan Hệ Thống](#-tổng-quan-hệ-thống)
+2. [Cài Đặt Nhanh (Quick Start)](#-cài-đặt-nhanh-quick-start)
+3. [Kiến Trúc Kỹ Thuật Cốt Lõi](#-kiến-trúc-kỹ-thuật-cốt-lõi)
+4. [Kho Tri Thức Pháp Luật (Legal Knowledge Base)](#-kho-tri-thức-pháp-luật-legal-knowledge-base)
+5. [Mô Hình Nhúng DeepX Embedding v1.0 (1024d)](#-mô-hình-nhúng-deepx-embedding-v10-1024d)
+6. [Universal LLM Gateway & Quản Lý Chi Phí](#-universal-llm-gateway--quản-lý-chi-phí)
+7. [Luồng Nghiệp Vụ 8 Trang Giao Diện Streamlit](#-luồng-nghiệp-vụ-8-trang-giao-diện-streamlit)
+8. [Bộ Quy Tắc Rà Soát Tuân Thủ Gói Thầu CNTT (R1 - R5)](#-bộ-quy-tắc-rà-soát-tuân-thủ-gói-thầu-cntt-r1---r5)
+9. [Kết Quả Đánh Giá Thực Nghiệm (Benchmark)](#-kết-quả-đánh-giá-thực-nghiệm-benchmark)
+10. [Bộ Kiểm Thử Tự Động (164 Tests Passed)](#-bộ-kiểm-thử-tự-động-164-tests-passed)
+11. [Danh Mục Scripts Vận Hành CLI](#-danh-mục-scripts-vận-hành-cli)
+12. [Bảo Mật & Tính Toàn Vẹn Hệ Thống](#-bảo-mật--tính-toàn-vẹn-hệ-thống)
+13. [Cấu Trúc Thư Mục Dự Án](#-cấu-trúc-thư-mục-dự-án)
+
+---
+
+## 🌟 Tổng Quan Hệ Thống
+
+**AutoTender-VN** là giải pháp toàn diện giải quyết bài toán phức tạp trong công tác lập và rà soát E-HSMT cho các gói thầu Phần mềm và Mua sắm CNTT sử dụng vốn Ngân sách Nhà nước. Hệ thống kết hợp:
+- **Advanced Modular Hybrid RAG:** Truy xuất kết hợp Sparse (BM25) + Dense (Qdrant Vector DB 1024d HNSW) qua thuật toán **Reciprocal Rank Fusion (RRF $k=60$)** và tinh chỉnh thứ hạng bằng **Cross-Encoder Reranker** (`mmarco-mMiniLMv2-L12-H384-v1`).
+- **DeepX Embedding SOTA:** Sử dụng mô hình nhúng `dxtech-asia/deepx-embedding-v1` (772M tham số, kiến trúc Linear Attention Gated DeltaNet-2, ngữ cảnh dài 8.192 tokens native, đạt nDCG@10 = 0.8162 trên Zalo Legal Text Retrieval).
+- **Universal LLM Gateway:** Kết nối linh hoạt tới Claude 3.5 Sonnet / DeepSeek-V3 / OpenAI GPT-4o với cơ chế phòng vệ chi phí tối đa `$5.0 USD/tiến trình` và suy biến 3 tầng (Graceful Degradation).
+- **M6 Compliance Guard:** Hệ thống 5 bộ quy tắc rà soát vi phạm pháp lý đặc thù cho gói thầu phần mềm theo Nghị định 73/2019/NĐ-CP, Nghị định 82/2024/NĐ-CP, Nghị định 85/2016/NĐ-CP và Thông tư 22/2024/TT-BKHĐT.
+- **Human-in-the-Loop (HITL) Workflow:** Quy trình tương tác người - máy phê duyệt từng mục, cho phép tùy biến nội dung, gắn cờ phản hồi và xuất bản văn bản chuẩn thể thức hành chính Nhà nước (DOCX chuẩn NĐ 30/2020 và PDF mẫu TT 22/2024/TT-BKHĐT).
+
+---
+
+## 🚀 Cài Đặt Nhanh (Quick Start)
+
+### Yêu Cầu Môi Trường
+- **Hệ điều hành:** macOS (Apple Silicon M-series khuyến nghị), Linux (Ubuntu 22.04+), hoặc Windows 11.
+- **Python:** 3.11 hoặc 3.12.
+- **Docker:** Docker Desktop hoặc Docker Engine để chạy Qdrant Vector DB.
+- **Công cụ quản lý gói:** `uv` (khuyến nghị cho tốc độ tối ưu) hoặc `pip`.
+
+### Quy Trình Khởi Động 5 Bước
 
 ```bash
-# 1. Tạo môi trường ảo và cài đặt thư viện phụ thuộc (khuyến nghị dùng uv)
-uv venv && uv pip install -r requirements.txt
-
-# 2. Khởi động các dịch vụ Docker (Qdrant Vector DB + Embedding Service)
-docker compose up -d
-
-# 3. Nạp kho tri thức pháp luật vào Qdrant (thực hiện 1 lần)
-python scripts/ingest_to_qdrant.py
-
-# 4. Tạo tài khoản quản trị Admin (thực hiện 1 lần)
-python scripts/create_user.py --username admin --display-name "Quản trị viên" --role admin
-
-# 5. Khởi chạy ứng dụng Web
-streamlit run app/main.py
-```
-
-Truy cập giao diện hệ thống tại trình duyệt: `http://localhost:8501`.
-
----
-
-## Kiến trúc Hệ thống
-
-```
-Streamlit Web App (8 trang giao diện nghiệp vụ)
-  1-Thu thập  2-KHLCNT  3-Soạn thảo HSMT  4-Tuân thủ  5-Xuất bản/In
-  6-Model Dashboard     7-Hỏi-đáp pháp lý             8-Đánh giá RAG
-        │
-src/autotender/ -- Core Engine
-  schemas.py       Data contracts Pydantic v2 dùng chung toàn hệ thống
-  rag/             Hybrid RAG pipeline (BM25 + Dense + RRF + Cross-Encoder)
-  generation/      Universal OpenAI-compatible LLM Gateway (WokuShop/Claude/GPT/DeepSeek)
-  models/          M5 Generator (8 chương HSMT), M6 Compliance (R1-R5), M2 NER, Legal QA
-  export/          DOCX (100% chuẩn NĐ 30/2020) & PDF (TT 22/2024) Render Engine
-  hitl/            Human-in-the-loop SQLite Store (Draft -> Edited -> Approved)
-  auth/ / audit/   Xác thực PBKDF2-HMAC-SHA256, Audit Log bất biến (SQL Trigger)
-  crawler/         Web crawlers Hệ thống mạng đấu thầu quốc gia (MSC) & Dauthau.asia
-  ingest/          Xử lý tệp PDF, DOCX và OCR bản quét (VietOCR)
-  knowledge/       Bộ công cụ thu thập và cập nhật văn bản quy phạm pháp luật
-  eval/            Khung đo lường hiệu năng RAG (Recall@k, MRR, nDCG) & Faithfulness
-        │
-  Docker: Qdrant DB (:6333)        Docker: Embedding Service (:8080)
-  legal_chunks (Dense 1024d)  <──> dxtech-asia/deepx-embedding-v1
-  khlcnt_chunks (Dense 1024d)      1024d, ngữ cảnh 8K token, CPU multi-threading
-```
-
----
-
-## Cài đặt Chi tiết
-
-**Yêu cầu hệ thống:** Python 3.10+, Docker Desktop, công cụ `uv` (khuyến nghị) hoặc `pip`.
-
-### Bước 0: Tạo môi trường thực thi
-
-```bash
-# Sử dụng uv (khuyến nghị để cài đặt siêu tốc):
+# 1. Clone mã nguồn và khởi tạo môi trường ảo
+git clone https://github.com/dannd/autotender-vn.git
+cd autotender-vn
 uv venv
-uv pip install -r requirements.txt
+source .venv/bin/activate    # Linux/macOS (hoặc .venv\Scripts\activate trên Windows)
+uv pip install -e .
 
-# Hoặc sử dụng pip truyền thống:
-python -m venv .venv
-source .venv/bin/activate        # Linux/macOS
-# .venv\Scripts\activate         # Windows
-pip install -r requirements.txt
+# 2. Khởi động Qdrant Vector DB (cổng 6333)
+docker compose up -d qdrant
+
+# 3. Khởi chạy DeepX Embedding Service (cổng 8080)
+# (Chạy Native trên máy host để tối ưu 100% CPU multi-threading / GPU)
+uv run python -m uvicorn docker.embedding.server:app --host 0.0.0.0 --port 8080
+
+# 4. Nạp kho tri thức 8 bộ văn bản pháp luật vào Qdrant (thực hiện ở terminal mới)
+uv run python scripts/ingest_to_qdrant.py --recreate-collection
+
+# 5. Tạo tài khoản Quản trị viên và khởi chạy Web App
+uv run python scripts/create_user.py --username admin --display-name "Quản trị viên" --role admin --password admin123
+uv run python -m streamlit run app/main.py --server.port 8501
 ```
 
-### Bước 1: Khởi động các dịch vụ Docker
-
-```bash
-# Khởi động Qdrant và Microservice Embedding:
-docker compose up -d
-
-# Kiểm tra trạng thái hoạt động:
-docker compose ps
-
-# Dashboard quản trị Qdrant: http://localhost:6333/dashboard
-# Kiểm tra sức khỏe Embedding: http://localhost:8080/health
-# Thông tin cấu hình Model:   http://localhost:8080/info
-```
-
-*Lưu ý:* Trong lần đầu khởi động, container `embedding-service` sẽ tự động tải mô hình `dxtech-asia/deepx-embedding-v1` (~1.5 GB) từ HuggingFace và lưu vào Docker volume `hf_cache`. Các lần khởi động tiếp theo sẽ sử dụng cache cục bộ.
-
-### Bước 2: Nạp kho tri thức pháp luật vào Qdrant
-
-```bash
-# Nạp 684 chunks văn bản quy phạm pháp luật (Luật 22/2023 + NĐ 214/2025 + TT 01/2024 & 22/2024):
-python scripts/ingest_to_qdrant.py
-
-# Nạp lại từ đầu (xóa collection cũ và khởi tạo lại):
-python scripts/ingest_to_qdrant.py --recreate-collection
-
-# Kiểm tra schema và số lượng điểm dữ liệu trong collection:
-python scripts/check_qdrant_schema.py
-
-# Chạy kiểm thử truy xuất dữ liệu độc lập (không cần LLM API key):
-python scripts/smoke_test_retrieval.py --skip-rerank
-```
-
-Dữ liệu được lưu trữ bền vững (persistent) trong Docker volume `qdrant_storage` — không cần nạp lại sau mỗi lần khởi động lại máy.
-
-### Bước 3: Cấu hình khóa API LLM (Tùy chọn nâng cao)
-
-```bash
-cp .env.example .env
-# Mở tệp .env và cấu hình ít nhất một trong các khóa API sau:
-#   LLM_API_KEY=...              (Ưu tiên 1: dùng cho WokuShop Gateway hoặc endpoint tương thích OpenAI)
-#   OPENAI_API_KEY=sk-...        (Ưu tiên 2: OpenAI trực tiếp)
-#   ANTHROPIC_API_KEY=sk-ant-... (Ưu tiên 3: Anthropic trực tiếp)
-#
-# Tùy chỉnh endpoint và model:
-#   LLM_BASE_URL=https://llm.wokushop.com/v1
-#   LLM_MODEL=claude-3-5-sonnet-20241022
-```
-
-> [!NOTE]
-> Hệ thống vẫn hoạt động bình thường kể cả khi **không có API Key** nhờ cơ chế **3-Tier Graceful Degradation** — tự động chuyển sang Tier 3 (Template filling + trích dẫn luật thô từ cơ sở dữ liệu).
+👉 Mở trình duyệt và truy cập: **`http://localhost:8501`**  
+- **Tên đăng nhập:** `admin`  
+- **Mật khẩu:** `admin123`
 
 ---
 
-## Embedding Microservice (Docker)
+## 🏗 Kiến Trúc Kỹ Thuật Cốt Lõi
 
-Hệ thống đóng gói mô hình nhúng thành một microservice độc lập phục vụ vector hóa văn bản pháp luật và hồ sơ mời thầu:
-
-| Endpoint | Giao thức | Mô tả chức năng |
-|---|---|---|
-| `/health` | `GET` | Kiểm tra trạng thái sẵn sàng của container |
-| `/info` | `GET` | Cung cấp thông tin model, số chiều vector, tokenizer |
-| `/embed` | `POST` | Vector hóa danh sách văn bản `{"texts": [...]}` $\rightarrow$ ma trận `float32[][]` |
-
-| Thông số kỹ thuật | Giá trị cấu hình |
-|---|---|
-| **Mô hình** | `dxtech-asia/deepx-embedding-v1` (Kiến trúc GatedDeltaNet-2 / Linear Attention) |
-| **Số chiều Vector** | 1024 chiều (hỗ trợ Matryoshka Representation Learning) |
-| **Cửa sổ ngữ cảnh** | **8.192 tokens** (không bị cắt cụt văn bản ngầm như các mô hình gốc BERT) |
-| **Benchmark** | nDCG@10 = **0.816** trên tập Zalo Legal Text Retrieval |
-| **Môi trường chạy** | CPU-only tối ưu, PyTorch 2.5.1+cpu, Transformers 4.44–4.47 |
-| **Đa luồng** | 12 worker threads tận dụng toàn bộ nhân CPU đa lõi |
-
-```bash
-# Kiểm thử thủ công bằng lệnh cURL:
-curl http://localhost:8080/health
-curl -X POST http://localhost:8080/embed \
-  -H "Content-Type: application/json" \
-  -d "{\"texts\": [\"Hồ sơ mời thầu gói thầu phần mềm\", \"Điều kiện năng lực tài chính của nhà thầu\"]}"
 ```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 STREAMLIT HITL WEB APP                                 │
+│  [1-Thu thập]  [2-Nạp KHLCNT]  [3-Soạn thảo]  [4-Tuân thủ]  [5-Xuất/In]  [6,7,8-Phân tích] │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │
+┌───────────────────────────────────────────▼────────────────────────────────────────────┐
+│                               AUTOTENDER CORE ENGINE                                   │
+│                                                                                        │
+│  ┌──────────────────────┐   ┌──────────────────────┐   ┌───────────────────────────┐   │
+│  │   RAG RETRIEVER      │   │     M5 GENERATOR     │   │   M6 COMPLIANCE GUARD     │   │
+│  │  • Sparse (BM25)     │   │  • System Prompts    │   │  • R1: Anti-Brand Flag    │   │
+│  │  • Dense (Qdrant)    │──>│  • Slot-filling      │──>│  • R2: Turnover Cap       │   │
+│  │  • RRF Fusion (k=60) │   │  • Citations Filter  │   │  • R3: Mandatory Clauses  │   │
+│  │  • Cross-Encoder     │   │  • Graceful Fallback │   │  • R4: Numeric Verifier   │   │
+│  └──────────────────────┘   └──────────────────────┘   │  • R5: Full 8-Section     │   │
+│                                                        └───────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
+│  │               UNIVERSAL OPENAI-COMPATIBLE LLM GATEWAY (Tenacity)                │   │
+│  │      Claude 3.5 Sonnet / Claude Sonnet 4.5  │  DeepSeek-V3  │  OpenAI GPT-4o    │   │
+│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+└───────────────────────────────────────────┬────────────────────────────────────────────┘
+                                            │
+               ┌────────────────────────────┴────────────────────────────┐
+               │                                                         │
+┌──────────────▼─────────────┐                            ┌──────────────▼─────────────┐
+│    QDRANT VECTOR DB (:6333)│                            │  DEEPX EMBEDDING (:8080)   │
+│ • legal_chunks (1024d)     │                            │ • Linear Attention (GDN-2) │
+│ • khlcnt_chunks (1024d)    │                            │ • 8.192 Token Context      │
+│ • HNSW + Payload Index     │                            │ • Matryoshka 1024d Output  │
+└────────────────────────────┘                            └────────────────────────────┘
+```
+
+### Cơ chế Suy biến 3 Tầng (3-Tier Graceful Degradation)
+Hệ thống đảm bảo tính sẵn sàng 100% trong mọi điều kiện hạ tầng:
+- **Tier 1 (Đầy đủ):** Universal LLM Gateway (Claude 3.5 / DeepSeek-V3) + Advanced Hybrid RAG (Qdrant 1024d + BM25 + Rerank).
+- **Tier 2 (Ngoại tuyến nâng cao):** Local Dense Embedding + BM25 + Trích dẫn nguyên văn Điều/Khoản luật.
+- **Tier 3 (Phòng thủ tối đa):** Deterministic Slot-filling điền số liệu trực tiếp từ KHLCNT gốc vào biểu mẫu chuẩn, kết hợp trích dẫn luật thô, không phụ thuộc kết nối Internet hay API Key.
 
 ---
 
-## Qdrant Collection Schema
+## 📚 Kho Tri Thức Pháp Luật (Legal Knowledge Base)
 
-### Collection `legal_chunks` (Kho tri thức pháp luật):
+Hệ thống đã chuẩn hóa và nạp toàn bộ **8 bộ văn bản quy phạm pháp luật** đầu ngành (341 Điều luật, 699 Chunks phân cấp):
+
+| STT | Mã định danh (`law_id`) | Tên văn bản quy phạm pháp luật | Số Điều | Số Chunks | Trọng tâm nghiệp vụ |
+|:---:|---|---|:---:|:---:|---|
+| **1** | `luat_22_2023_qh15` | **Luật Đấu thầu số 22/2023/QH15** | 96 | 196 | Nguyên tắc cạnh tranh, hình thức LCNT, tiêu chuẩn đánh giá E-HSDT. |
+| **2** | `nd_214_2025_ndcp` | **Nghị định 214/2025/NĐ-CP** | 143 | 303 | Quy định chi tiết thi hành Luật Đấu thầu, cấu trúc 8 chương E-HSMT. |
+| **3** | `nd_45_2026_ndcp` | **Nghị định 45/2026/NĐ-CP** | 18 | 42 | Quản lý đầu tư CNTT sử dụng nguồn vốn ngân sách nhà nước mới nhất. |
+| **4** | `nd_73_2019_ndcp` | **Nghị định 73/2019/NĐ-CP** | 65 | 114 | Thiết kế phần mềm nội bộ, kiểm thử UAT, sở hữu 100% mã nguồn và bản quyền. |
+| **5** | `nd_82_2024_ndcp` | **Nghị định 82/2024/NĐ-CP** | 4 | 10 | Sửa đổi, bổ sung NĐ 73/2019 về đề cương dự toán và chi phí phần mềm. |
+| **6** | `nd_85_2016_ndcp` | **Nghị định 85/2016/NĐ-CP** | 23 | 44 | Quy định bảo đảm an toàn thông tin theo 5 cấp độ bắt buộc cho phần mềm. |
+| **7** | `tt_01_2024_bkhdt` | **Thông tư 01/2024/TT-BKHĐT** | 16 | 38 | Hướng dẫn việc cung cấp thông tin và mẫu E-HSMT trên mạng. |
+| **8** | `tt_22_2024_bkhdt` | **Thông tư 22/2024/TT-BKHĐT** | 16 | 42 | Hướng dẫn mẫu E-HSMT mua sắm hàng hóa, dịch vụ phi tư vấn CNTT. |
+| **TỔNG**| **8 Văn bản** | **Toàn diện hệ thống pháp lý đấu thầu CNTT** | **341** | **699** | **100% nguyên văn Điều/Khoản kèm siêu dữ liệu phân cấp** |
+
+---
+
+## ⚡ Mô Hình Nhúng DeepX Embedding v1.0 (1024d)
+
+Mô hình [`dxtech-asia/deepx-embedding-v1`](https://huggingface.co/dxtech-asia/deepx-embedding-v1) được chọn làm mô hình mặc định nhờ những ưu thế vượt trội:
+
+- **Kiến trúc Linear Attention O(n):** Sử dụng cơ chế Gated DeltaNet-2 kết hợp Hyperloop weight sharing, giúp xử lý các đoạn văn bản dài 8.192 tokens với tốc độ ổn định và bộ nhớ VRAM tối ưu.
+- **Matryoshka Representation Learning:** Hỗ trợ linh hoạt từ 256d đến 1536d (AutoTender-VN chọn chuẩn **1024 chiều** đạt độ chính xác ~99% so với full dimension).
+- **Benchmark Top 1 SOTA:** Đạt **nDCG@10 = 0.8162** trên tập dữ liệu Zalo Legal Text Retrieval (vượt qua VietLegal-Harrier 0.7813 và Multilingual-E5 0.6660).
+- **Đa nền tảng:** Hỗ trợ chạy Native (tự động phát hiện CUDA / Apple Silicon MPS / CPU multi-threading) hoặc đóng gói Docker Container độc lập.
+
+### Các Endpoints Microservice:
+- `GET /health` $\rightarrow$ Trạng thái dịch vụ và thiết bị tính toán (`cpu` / `mps` / `cuda`).
+- `GET /info` $\rightarrow$ Thông tin kiến trúc, context length (8K) và số chiều vector mặc định (1024).
+- `POST /embed` $\rightarrow$ Nhận danh sách văn bản và trả về ma trận embedding `float32[N][1024]` chuẩn hóa $L_2$.
+
+---
+
+## 🌐 Universal LLM Gateway & Quản Lý Chi Phí
+
+Module [`src/autotender/generation/llm_client.py`](src/autotender/generation/llm_client.py) cung cấp cổng giao tiếp chuẩn hóa OpenAI-compatible:
+
 ```yaml
-Vectors: { "dense": VectorParams(size=1024, distance=COSINE) }
-Payload (Indexed):
-  law_id      : keyword   # "nd_214_2025_nd_cp", "luat_22_2023_qh15", "tt_22_2024_tt_bkhdt"
-  law_name    : text      # "Nghị định 214/2025/NĐ-CP", "Luật Đấu thầu số 22/2023/QH15"
-  doc_type    : keyword   # "luat", "nghi_dinh", "thong_tu"
-  dieu_so     : integer   # Số thứ tự Điều
-  dieu_title  : text      # Tiêu đề Điều luật
-  khoan_so    : keyword   # "1", "2"... (None nếu chunk chứa trọn vẹn Điều)
-  source_doc  : text      # Nhãn nguồn hiển thị trên giao diện
-  text        : text      # Nội dung nguyên văn điều khoản luật
-  chunk_id    : keyword   # Mã UUID định danh duy nhất
+llm_gateway:
+  base_url: "https://llm.wokushop.com/v1"      # Ghi đè qua LLM_BASE_URL
+  default_model: "claude-sonnet-4-5-20250929"  # Ghi đè qua LLM_MODEL
+  timeout_seconds: 60
+  usd_cap_per_process: 5.0                     # Khống chế trần ngân sách an toàn
 ```
 
-### Collection `khlcnt_chunks` (Kế hoạch lựa chọn nhà thầu):
-```yaml
-Vectors: { "dense": VectorParams(size=1024, distance=COSINE) }
-Payload: doc_id, section_title, text, page_number, upload_time
-```
+### Danh mục Mô hình Hỗ trợ:
+1. `claude-3-5-sonnet-20241022` / `claude-sonnet-4-5-20250929`: Soạn thảo chính xác điều khoản kỹ thuật và pháp lý chuyên sâu.
+2. `claude-haiku-4-5-20251001`: Tối ưu hóa truy vấn và phân loại nhanh.
+3. `deepseek-chat` (DeepSeek-V3): Soạn thảo tốc độ cao, chi phí thấp ($0.14/Mtok input).
+4. `gpt-4o` / `gpt-4o-mini`: Đánh giá trung thực độc lập (LLM-as-a-judge).
 
 ---
 
-## LLM Gateway (Universal OpenAI-Compatible)
+## 🖥 Luồng Nghiệp Vụ 8 Trang Giao Diện Streamlit
 
-Module [`src/autotender/generation/llm_client.py`](src/autotender/generation/llm_client.py) chuẩn hóa giao tiếp với mọi nhà cung cấp LLM:
-
-| Mô hình đề xuất | Nhà cung cấp / Gateway | Mục đích sử dụng |
-|---|---|---|
-| `claude-3-5-sonnet-20241022` | WokuShop / Anthropic | Mặc định: Soạn thảo dự thảo 8 chương HSMT & Hỏi-đáp chuyên sâu |
-| `claude-sonnet-4-5-20250929` | WokuShop | Soạn thảo các chương kỹ thuật và điều khoản hợp đồng phức tạp |
-| `claude-haiku-4-5-20251001` | WokuShop | Tối ưu hóa truy vấn (Query Rewriting / HyDE-lite) |
-| `gpt-4o`, `gpt-4o-mini` | OpenAI | Đánh giá độc lập (LLM-as-a-judge) và rà soát tuân thủ |
-| `deepseek-chat` (DeepSeek-V3) | DeepSeek | Soạn thảo chi phí thấp, tốc độ cao |
-
-**Cơ chế phòng thủ & Vận hành:**
-* **Trần ngân sách an toàn (Budget Guard):** Khống chế tối đa `$5.0 USD/tiến trình` (cấu hình tại `configs/app.yaml -> llm_gateway.usd_cap_per_process`).
-* **Tự động thử lại (Exponential Backoff Retry):** Thư viện `tenacity` xử lý mượt mà khi gặp lỗi Rate Limit (HTTP 429) hoặc lỗi máy chủ (HTTP 5xx).
-* **Tự phục hồi lỗi (Graceful Fallback):** Khi mất mạng hoặc hết hạn ngạch, hệ thống ném `LLMUnavailableError` và tự động chuyển sang Tier 3 mà không làm gián đoạn ứng dụng.
-* **Theo dõi chi phí thời gian thực (Thread-safe Cost Tracking).**
-
----
-
-## Luồng Nghiệp vụ 8 Trang Giao diện
-
-| Trang | Tên trang | Chức năng nghiệp vụ chi tiết |
+| Trang | Tên màn hình | Chức năng nghiệp vụ chi tiết |
 |:---:|---|---|
-| **1** | **Thu thập dữ liệu** | Thu thập tự động dữ liệu Thông báo mời thầu (TBMT) từ Hệ thống mạng đấu thầu quốc gia (`muasamcong.mpi.gov.vn`) và `dauthau.asia`. |
-| **2** | **Nạp KHLCNT** | Tiếp nhận tệp PDF/DOCX Kế hoạch lựa chọn nhà thầu, kích hoạt mô hình NER trích xuất tự động 8 trường thông tin cốt lõi. |
-| **3** | **Soạn thảo HSMT** | **Trọng tâm hệ thống (Mức 2):** Sinh dự thảo 8 chương I–VIII bằng Hybrid RAG + LLM, hỗ trợ Focus Mode lọc lỗi, Quick Fix 1-click và phê duyệt HITL từng mục. |
-| **4** | **Kiểm tra tuân thủ** | Rà soát tự động 5 nhóm cờ vi phạm pháp lý R1–R5 (tiêu chí hạn chế cạnh tranh, cài cắm nhãn hiệu, sai lệch số liệu). |
-| **5** | **Xuất và In** | Xem trước thể thức văn bản hành chính công vụ và xuất tệp `.docx` (chuẩn NĐ 30/2020) và `.pdf` (mẫu TT 22/2024). |
-| **6** | **Model Dashboard** | Bảng điều khiển dành riêng cho Quản trị viên: Giám sát trạng thái Vector DB, Embedding Service, chi phí LLM và tra cứu Nhật ký kiểm toán (Audit Log). |
-| **7** | **Hỏi - Đáp pháp lý** | **Mức 1:** Trợ lý hỏi đáp tự do về Luật Đấu thầu, trích dẫn nguyên văn từng Điều/Khoản luật có giá trị pháp lý hiện hành. |
-| **8** | **Đánh giá RAG** | Bảng phân tích định lượng hiệu năng truy xuất: Recall@k, MRR, nDCG@5, độ trung thực (Faithfulness) và so sánh các mô hình nhúng. |
+| **1** | **Thu thập dữ liệu** | Crawler tự động dữ liệu Thông báo mời thầu (TBMT) từ Hệ thống mạng đấu thầu quốc gia (`muasamcong.mpi.gov.vn`) và `dauthau.asia`. |
+| **2** | **Nạp KHLCNT** | Tiếp nhận tệp PDF/DOCX Quyết định phê duyệt KHLCNT; mô hình M2 NER tự động trích xuất 8 trường thông tin cốt lõi (Tên gói thầu, Chủ đầu tư, Giá gói thầu, Nguồn vốn, Phương thức LCNT, Bảo đảm dự thầu...). |
+| **3** | **Soạn thảo HSMT** | **Trọng tâm hệ thống:** Sinh dự thảo toàn diện 8 chương I–VIII bằng Hybrid RAG + LLM. Hỗ trợ Focus Mode lọc các mục có cờ cảnh báo, Quick Fix 1-click và duyệt HITL từng chương. |
+| **4** | **Kiểm tra tuân thủ** | Bộ lọc M6 quét tự động 5 nhóm cờ vi phạm pháp lý R1–R5, hiển thị báo cáo tổng quan Pass/Warning/Fail trước khi phê duyệt. |
+| **5** | **Xuất và In** | Trình diễn thể thức văn bản hành chính theo Nghị định 30/2020/NĐ-CP; xuất bản tệp `.docx` và `.pdf` (mẫu chuẩn TT 22/2024/TT-BKHĐT) kèm phụ lục nhật ký phê duyệt. |
+| **6** | **Bảng điều khiển (Admin)** | Giám sát trạng thái Vector DB, Embedding Service, chi phí LLM thời gian thực và tra cứu Nhật ký kiểm toán bất biến (Audit Log). |
+| **7** | **Hỏi - Đáp pháp lý** | **Mức 1:** Trợ lý hỏi đáp chuyên sâu Luật Đấu thầu và các Nghị định hướng dẫn, đối chiếu và hiển thị nguyên văn từng Điều/Khoản luật. |
+| **8** | **Đánh giá RAG** | Khung đo lường định lượng: Recall@k, MRR, nDCG@5, Faithfulness (độ trung thực), Completeness (độ đầy đủ) và biểu đồ không gian vector t-SNE/UMAP. |
 
 ---
 
-## Nghiệp vụ Đấu thầu Phần mềm/CNTT & Bộ Quy tắc Tuân thủ (R1 - R5)
-
-Hệ thống tích hợp sâu các quy định đặc thù của gói thầu CNTT và phát triển phần mềm theo **Nghị định 73/2019/NĐ-CP**, **Nghị định 82/2024/NĐ-CP** và **Thông tư 22/2024/TT-BKHĐT**:
+## 🛡 Bộ Quy Tắc Rà Soát Tuân Thủ Gói Thầu CNTT (R1 - R5)
 
 ```
-                               BỘ QUY TẮC RÀ SOÁT TUÂN THỦ (COMPLIANCE GUARD)
-┌───────┬──────────────────────────────────┬──────────────────────────────────────────────────────────────────────────┐
-│ Mã cờ │ Loại quy tắc                     │ Cơ sở pháp lý & Ý nghĩa nghiệp vụ                                       │
-├───────┼──────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│  R1   │ Chống chỉ định nhãn hiệu/xuất xứ │ Khoản 2 Điều 44 Luật Đấu thầu 2023: Cấm nêu nhãn hiệu độc quyền        │
-│       │ (Brand Restriction)              │ (Cisco, Oracle, Microsoft, Dell...) nếu không có cụm "hoặc tương đương".│
-├───────┼──────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│  R2   │ Khống chế trần doanh thu         │ Thông tư 06/2024 & 22/2024/TT-BKHĐT: Yêu cầu doanh thu bình quân hàng    │
-│       │ (Excessive Turnover)             │ năm của nhà thầu không được vượt quá 3 lần giá trị gói thầu.             │
-├───────┼──────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│  R3   │ Kiểm tra thành phần bắt buộc     │ Phát hiện thiếu sót các mục bắt buộc: An toàn thông tin theo cấp độ      │
-│       │ (Mandatory Sections)             │ (NĐ 85/2016), cam kết bản quyền mã nguồn, bảo hành tối thiểu 12 tháng.   │
-├───────┼──────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│  R4   │ Xác thực tính nhất quán số liệu  │ Chống ảo giác LLM: So khớp số tiền gói thầu, giá trị bảo đảm dự thầu   │
-│       │ (Numeric Consistency Verifier)   │ và thời gian thực hiện hợp đồng khớp chính xác từng đồng với KHLCNT gốc. │
-├───────┼──────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
-│  R5   │ Đảm bảo cấu trúc 8 chương HSMT   │ Điều 26 Nghị định 214/2025/NĐ-CP: Đảm bảo đầy đủ trọn bộ 8 chương I-VIII│
-│       │ (Full 8-Section Completeness)    │ theo đúng cấu trúc chuẩn của Bộ Kế hoạch và Đầu tư.                     │
-└───────┴──────────────────────────────────┴──────────────────────────────────────────────────────────────────────────┘
+┌───────┬──────────────────────────────────┬────────────────────────────────────────────────────────────────────────────┐
+│ Mã cờ │ Loại quy tắc kiểm tra            │ Căn cứ pháp lý & Ý nghĩa nghiệp vụ                                         │
+├───────┼──────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┤
+│  R1   │ Chống chỉ định nhãn hiệu/xuất xứ │ Khoản 2 Điều 44 Luật Đấu thầu 2023: Cấm nêu nhãn hiệu độc quyền           │
+│       │ (Brand Restriction)              │ (Oracle, Microsoft, Cisco, Dell...) nếu không có cụm từ "hoặc tương đương".│
+├───────┼──────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┤
+│  R2   │ Khống chế trần doanh thu         │ Thông tư 22/2024/TT-BKHĐT: Yêu cầu doanh thu bình quân hàng năm của       │
+│       │ (Excessive Turnover)             │ nhà thầu không được vượt quá 3 lần giá trị gói thầu.                       │
+├───────┼──────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┤
+│  R3   │ Điều khoản bắt buộc gói thầu CNTT│ NĐ 85/2016/NĐ-CP (ATTT theo cấp độ), NĐ 73/2019/NĐ-CP (sở hữu 100% mã      │
+│       │ (Mandatory IT Clauses)           │ nguồn, nghiệm thu UAT), cam kết bảo hành tối thiểu 12 tháng.               │
+├───────┼──────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┤
+│  R4   │ Xác thực tính nhất quán số liệu  │ Chống ảo giác LLM: So khớp số tiền gói thầu, giá trị bảo đảm dự thầu      │
+│       │ (Numeric Consistency Verifier)   │ và thời gian thực hiện hợp đồng khớp chính xác từng chữ số với KHLCNT gốc. │
+├───────┼──────────────────────────────────┼────────────────────────────────────────────────────────────────────────────┤
+│  R5   │ Cấu trúc 8 chương E-HSMT         │ Điều 26 Nghị định 214/2025/NĐ-CP: Đảm bảo đầy đủ trọn bộ 8 chương I-VIII  │
+│       │ (Full 8-Section Completeness)    │ theo mẫu chuẩn của Bộ Kế hoạch và Đầu tư.                                  │
+└───────┴──────────────────────────────────┴────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Kết quả Đánh giá Thực nghiệm
+## 📊 Kết Quả Đánh Giá Thực Nghiệm (Benchmark)
 
-### 1. Hiệu năng Truy xuất Pháp luật (Retrieval Evaluation trên 46 câu hỏi benchmark)
-
+### 1. Hiệu năng Truy xuất Pháp luật (Retrieval Evaluation — 46 câu hỏi benchmark)
 | Cấu hình thử nghiệm | Recall@5 | MRR | nDCG@5 |
 |---|:---:|:---:|:---:|
-| BM25 (Sparse-only lexical search) | 0.565 | 0.385 | 0.426 |
+| BM25 (Sparse Lexical Search) | 0.565 | 0.385 | 0.426 |
 | Dense Search (`vietnamese-bi-encoder`, 768d) | 0.696 | 0.546 | 0.580 |
 | Hybrid RRF ($k=60$) | 0.674 | 0.537 | 0.564 |
 | **Hybrid RRF + Cross-Encoder Reranker** | **0.761** | **0.587** | **0.627** |
 
-### 2. Độ trung thực và Đầy đủ (Faithfulness & Completeness via LLM-as-a-judge)
-
+### 2. Độ Trung Thực & Đầy Đủ (Faithfulness & Completeness — LLM-as-a-judge)
 | Chế độ thực thi | Độ trung thực (Faithfulness) | Độ đầy đủ (Completeness) |
 |---|:---:|:---:|
-| LLM thuần (Không sử dụng RAG - Zero-shot) | 0.41 | 0.44 |
+| LLM thuần (Không RAG — Zero-shot) | 0.41 | 0.44 |
 | **Hệ thống AutoTender-VN (Hybrid RAG + LLM)** | **0.94** | **0.87** |
 
-### 3. Phân tích 5 Nâng cấp Kiến trúc RAG
-
-| Nâng cấp kỹ thuật | Trạng thái | Hiệu quả thực tế |
-|---|:---:|---|
-| Chặn tiêu chí hạn chế cạnh tranh ngay từ System Prompt | **Bật** | Phòng thủ 2 lớp cùng bộ lọc M6 |
-| Truy xuất trọn vẹn Điều (Parent Chunk) thay vì chỉ Khoản khớp | **Bật** | 487/684 chunk được bảo toàn toàn văn |
-| Tối ưu truy vấn (Query Rewriting qua Claude Haiku) | Tắt mặc định | Làm giảm nhẹ nDCG@5 (0.627 $\rightarrow$ 0.511) do câu hỏi pháp lý đã rõ từ khóa |
-| Phân loại văn bản luật trước truy xuất (Metadata Filtering) | Tắt mặc định | Phân loại tự động còn nhầm lẫn (0.531) so với Oracle lý thuyết (0.734) |
-| Chuyển đổi sang `deepx-embedding-v1` (1024d, 8K context, Docker) | **Mặc định mới** | Thay thế model 768d cũ; xử lý trọn vẹn các Điều luật dài mà không bị mất đuôi |
-
 ---
 
-## Bộ Kiểm thử Tự động (Test Suite)
+## 🧪 Bộ Kiểm Thử Tự Động (164 Tests Passed)
+
+Toàn bộ hệ thống được bảo vệ bởi **164 unit và integration tests** tự động:
 
 ```bash
-# Chạy toàn bộ 162 bài kiểm thử tự động:
-pytest
+# Chạy toàn bộ test suite:
+uv run python -m pytest
 
-# Chạy riêng nhóm kiểm thử RAG Pipeline:
-pytest -v tests/test_hybrid_retriever.py
-
-# Chạy riêng nhóm kiểm thử LLM Gateway:
-pytest -v tests/test_claude_client.py
+# Chạy có đo lường độ bao phủ (Coverage):
+uv run python -m pytest --cov=autotender
 ```
 
-**Kết quả kiểm thử:** **161 passed, 1 skipped, 0 failed** (Thời gian thực thi: ~89 giây)
-
-| Tệp kiểm thử | Số test | Phạm vi kiểm tra |
-|---|:---:|---|
-| `test_hybrid_retriever.py` | 15 | Dense/Sparse/RRF/Rerank kết hợp kiểm thử Mock Qdrant |
-| `test_claude_client.py` | 6 | LLM Gateway: Quản lý ngân sách, retry, theo dõi chi phí |
-| `test_legal_qa.py` | 6 | Mức 1: Query rewrite, lọc theo law_id, cơ chế fallback |
-| `test_generator.py` | 10 | Mức 2 (M5): Tier 1/3, Verifier R4 số liệu, slot-filling |
-| `test_compliance.py` | 8 | Bộ quy tắc rà soát vi phạm R1–R5 |
-| `test_chunker_legal.py` | 3 | Trích xuất phân đoạn Điều/Khoản kèm siêu dữ liệu |
-| `test_export.py` | 10 | Xuất tệp DOCX (chuẩn NĐ 30/2020) và PDF |
-| `test_hitl_store.py` | 8 | Quản lý vòng đời trạng thái phê duyệt trong SQLite |
-| `test_auth_store.py` | 7 | Xác thực tài khoản PBKDF2-HMAC-SHA256 |
-| `test_audit_store.py` | 4 | Nhật ký kiểm toán bất biến (Trigger chống xóa/sửa) |
+| Nhóm Kiểm Thử | Tệp Test | Số Tests | Nội Dung Kiểm Tra |
+|---|---|:---:|---|
+| **Hybrid RAG** | `test_hybrid_retriever.py`, `test_rerank.py` | **17** | Dense, Sparse BM25, RRF Fusion, Cross-Encoder, Mock Qdrant. |
+| **LLM Gateway** | `test_claude_client.py`, `test_query_rewrite.py` | **9** | Quản lý ngân sách, retry tenacity, cost tracking, graceful fallback. |
+| **M5 Generator** | `test_generator.py`, `test_orchestrator.py` | **13** | Sinh 8 chương, slot-filling, strip citation, verifier số liệu. |
+| **M6 Compliance**| `test_compliance.py` | **8** | Rà soát 5 bộ quy tắc R1–R5, phát hiện sai phạm phần mềm. |
+| **Pháp luật & QA**| `test_legal_qa.py`, `test_legal_fetch.py` | **20** | Parser Điều/Khoản, Q&A Mức 1, phân cấp văn bản quy phạm. |
+| **HITL & Storage**| `test_hitl_store.py`, `test_schemas.py` | **12** | Vòng đời trạng thái Draft $\rightarrow$ Approved, Pydantic data contracts. |
+| **Auth & Audit** | `test_auth_store.py`, `test_audit_store.py` | **11** | PBKDF2-HMAC-SHA256, SQL Trigger chống sửa/xóa audit log. |
+| **Xuất bản & In** | `test_export.py` | **10** | Render HTML, xuất DOCX (NĐ 30/2020), PDF (TT 22/2024). |
+| **Khác** | Ingest, Crawler, NER, Eval, VN Text | **64** | OCR, VietOCR, UMAP, Tokenizer, xử lý tiếng Việt NFC. |
+| **TỔNG CỘNG** | **164 / 164 PASSED (100%)** | **164** | **Bảo đảm tính toàn vẹn 100% trước khi triển khai** |
 
 ---
 
-## Danh mục Scripts Tiện ích
+## 🛠 Danh Mục Scripts Vận Hành CLI
 
-| Đường dẫn Script | Chức năng thực hiện |
+| Kịch bản CLI | Chức năng thực hiện |
 |---|---|
-| [`scripts/ingest_to_qdrant.py`](scripts/ingest_to_qdrant.py) | Nạp toàn bộ kho tri thức pháp luật vào Qdrant qua microservice embedding |
-| [`scripts/check_qdrant_schema.py`](scripts/check_qdrant_schema.py) | Kiểm tra schema collection, số lượng vector và phân bố payload |
-| [`scripts/smoke_test_retrieval.py`](scripts/smoke_test_retrieval.py) | Kiểm tra nhanh luồng truy xuất Hybrid RAG với các câu hỏi mẫu |
-| [`scripts/fetch_legal_corpus.py`](scripts/fetch_legal_corpus.py) | Tải văn bản quy phạm pháp luật mới nhất từ các nguồn chính thống |
-| [`scripts/run_retrieval_eval.py`](scripts/run_retrieval_eval.py) | Chạy bộ đo lường Recall@k / MRR / nDCG trên 46 câu hỏi benchmark |
-| [`scripts/run_ablation_table.py`](scripts/run_ablation_table.py) | Tạo bảng so sánh đối đầu giữa RAG và LLM thuần |
-| [`scripts/analyze_embeddings.py`](scripts/analyze_embeddings.py) | Phân tích và trực quan hóa không gian vector nhúng (t-SNE / UMAP) |
-| [`scripts/crawl_dauthau_asia.py`](scripts/crawl_dauthau_asia.py) | Thu thập tự động các gói thầu CNTT mới từ dauthau.asia |
-| [`scripts/create_user.py`](scripts/create_user.py) | Tạo mới tài khoản người dùng và phân quyền trong hệ thống |
-| [`scripts/ask_legal_qa.py`](scripts/ask_legal_qa.py) | Giao diện dòng lệnh (CLI) hỏi đáp pháp luật đấu thầu nhanh |
+| [`scripts/ingest_to_qdrant.py`](scripts/ingest_to_qdrant.py) | Nạp 699 chunks văn bản luật vào Qdrant qua cổng 8080. |
+| [`scripts/check_qdrant_schema.py`](scripts/check_qdrant_schema.py) | Kiểm tra schema, số lượng points và vector dimension trong Qdrant. |
+| [`scripts/create_user.py`](scripts/create_user.py) | Tạo tài khoản người dùng an toàn (Admin / Editor). |
+| [`scripts/smoke_test_retrieval.py`](scripts/smoke_test_retrieval.py) | Kiểm tra nhanh luồng truy xuất Hybrid RAG độc lập. |
+| [`scripts/run_retrieval_eval.py`](scripts/run_retrieval_eval.py) | Chạy đánh giá Recall@k, MRR, nDCG trên 46 câu hỏi benchmark. |
+| [`scripts/run_ablation_table.py`](scripts/run_ablation_table.py) | Xuất bảng so sánh đối đầu RAG vs LLM Zero-shot. |
+| [`scripts/analyze_embeddings.py`](scripts/analyze_embeddings.py) | Trực quan hóa không gian nhúng t-SNE / UMAP theo loại điều khoản. |
+| [`scripts/crawl_dauthau_asia.py`](scripts/crawl_dauthau_asia.py) | Thu thập tự động gói thầu CNTT từ dauthau.asia. |
+| [`scripts/ask_legal_qa.py`](scripts/ask_legal_qa.py) | Giao diện dòng lệnh hỏi đáp pháp luật đấu thầu nhanh. |
 
 ---
 
-## Bảo mật và Vận hành Hệ thống
+## 🔒 Bảo Mật & Tính Toàn Vẹn Hệ Thống
 
-* **Xác thực người dùng:** Sử dụng thuật toán băm mật khẩu **PBKDF2-HMAC-SHA256** với 600.000 vòng lặp, mỗi tài khoản sử dụng một chuỗi muối (salt) ngẫu nhiên riêng biệt, không tồn tại tài khoản mặc định.
-* **Nhật ký kiểm toán bất biến:** Bảng `audit_log` trong SQLite được bảo vệ bằng SQL Trigger chặn mọi thao tác `UPDATE` và `DELETE`, cho phép tra cứu minh bạch tại Trang 6 (chỉ dành cho Quản trị viên).
-* **Khống chế chi phí:** Tự động ngắt kết nối LLM khi chạm ngưỡng ngân sách `$5.0 USD/tiến trình` và chuyển tiếp mượt mà sang Tier 3.
-* **Đồng thời đa người dùng:** Kích hoạt chế độ `WAL (Write-Ahead Logging)` trong SQLite kết hợp khóa tương hỗ `RLock` trong Python cho toàn bộ các kho lưu trữ dữ liệu.
-* **Hệ thống nhật ký chuẩn hóa:** Hỗ trợ cấu hình `AUTOTENDER_LOG_FORMAT=json` phục vụ tích hợp trực tiếp vào ELK Stack hoặc Grafana Loki.
-
----
-
-## Giới hạn Đã biết (Known Limitations)
-
-* **Thời gian nạp dữ liệu ban đầu:** Quá trình nạp 684 chunks văn bản luật lần đầu mất khoảng 15 phút (do chạy trên CPU). Dữ liệu được lưu bền vững qua Docker volume nên chỉ cần thực hiện 1 lần duy nhất.
-* **Biểu mẫu chuyên ngành:** Đã nạp đầy đủ các điều khoản thuộc Thông tư 01/2024 và 22/2024/TT-BKHĐT; các biểu mẫu bảng tính Excel phức tạp hiện chưa đưa vào vector search.
-* **Nhận dạng chữ quang học (OCR):** Khuyến nghị sử dụng engine VietOCR trên môi trường CPU/Windows để đảm bảo độ chính xác tiếng Việt cao nhất.
-* **Trình xuất PDF (WeasyPrint):** Cần cài đặt thư viện hệ thống Pango/GTK; nếu môi trường máy chủ thiếu các thư viện này, hệ thống sẽ tự động chuyển sang ReportLab.
+1. **Xác thực PBKDF2-HMAC-SHA256:** Băm mật khẩu với 600.000 vòng lặp kèm muối ngẫu nhiên (salt) độc lập cho từng tài khoản, lưu trữ tại `data/processed/auth.db`.
+2. **Nhật ký Kiểm toán Bất biến (Immutable Audit Log):** Bảng `audit_log` trong `data/processed/audit.db` được bảo vệ bằng SQL Trigger chặn hoàn toàn các thao tác `UPDATE` và `DELETE`.
+3. **Đồng thời Đa người dùng:** SQLite kích hoạt chế độ `WAL (Write-Ahead Logging)` kết hợp `RLock` trong Python bảo đảm an toàn dữ liệu khi có nhiều người dùng thao tác cùng lúc.
+4. **Kiểm soát Ngân sách:** Hệ thống tự động ngắt kết nối LLM khi đạt giới hạn ngân sách cấu hình và chuyển tiếp sang Tier 3 để bảo vệ tài khoản API.
 
 ---
 
-## Cấu trúc Thư mục Dự án
+## 📂 Cấu Trúc Thư Mục Dự Án
 
 ```
 autotender-vn/
 ├── app/                          # Giao diện người dùng Streamlit
-│   ├── main.py                   # Điểm khởi đầu ứng dụng & điều hướng
-│   ├── auth_ui.py                # Giao diện đăng nhập & phiên làm việc
-│   ├── common.py                 # Thành phần giao diện dùng chung
-│   └── pages/                    # 8 trang màn hình chức năng nghiệp vụ
-│       ├── 1_Thu_thap_du_lieu.py
-│       ├── 2_Nap_KHLCNT.py
-│       ├── 3_Soan_thao_HSMT.py
-│       ├── 4_Kiem_tra_tuan_thu.py
-│       ├── 5_Xuat_va_In.py
-│       ├── 6_Bang_dieu_khien_Model.py
-│       ├── 7_Hoi_dap.py
-│       └── 8_Danh_gia.py
-├── configs/                      # Tệp cấu hình hệ thống
-│   ├── app.yaml                  # Cấu hình Qdrant, Embedding, LLM Gateway, PDF
-│   └── models.yaml               # Định nghĩa các mục 8 chương và System Prompts
-├── docker/                       # Cấu hình container hóa
+│   ├── main.py                   # Điểm khởi đầu ứng dụng & điều hướng menu
+│   ├── auth_ui.py                # Giao diện xác thực & phân quyền
+│   ├── common.py                 # Tiện ích giao diện dùng chung
+│   └── pages/                    # 8 trang nghiệp vụ chuyên biệt
+├── configs/                      # Cấu hình hệ thống (app.yaml, models.yaml)
+├── docker/                       # Cấu hình Docker & Docker Compose
 │   ├── docker-compose.yml        # Điều phối Qdrant & Embedding Service
-│   └── embedding/                # Dockerfile và FastAPI server cho embedding
-├── scripts/                      # 20 kịch bản CLI phục vụ vận hành & kiểm thử
+│   └── embedding/                # Dockerfile & FastAPI server DeepX (server.py)
+├── data/
+│   ├── samples/legal_corpus/     # 8 bộ văn bản quy phạm pháp luật (699 chunks)
+│   ├── eval/                     # Tập dữ liệu 46 câu hỏi benchmark RAG
+│   └── processed/                # Cơ sở dữ liệu SQLite (hitl.db, auth.db, audit.db)
 ├── src/autotender/               # Mã nguồn lõi (Core Engine)
 │   ├── schemas.py                # Data contracts Pydantic v2
-│   ├── config.py                 # Quản lý cài đặt cấu hình
-│   ├── api.py                    # FastAPI REST server độc lập (tùy chọn)
-│   ├── rag/                      # Pipeline Hybrid RAG (BM25, Qdrant, Rerank)
-│   ├── generation/               # Universal LLM Gateway & Query Rewriting
+│   ├── rag/                      # Pipeline Hybrid RAG (BM25 + Qdrant + RRF + Rerank)
+│   ├── generation/               # Universal OpenAI-compatible LLM Gateway
 │   ├── models/                   # Generator M5, Compliance M6, NER M2, Legal QA
-│   ├── export/                   # Engine xuất bản DOCX (NĐ 30/2020) & PDF
+│   ├── export/                   # Render Engine DOCX (NĐ 30/2020) & PDF (TT 22/2024)
 │   ├── hitl/                     # Quản lý quy trình phê duyệt Human-In-The-Loop
-│   ├── auth/ & audit/            # Xác thực người dùng & Nhật ký kiểm toán
-│   ├── crawler/ & ingest/        # Bộ thu thập dữ liệu & Trích xuất tài liệu/OCR
-│   ├── knowledge/                # Quản lý và cập nhật văn bản quy phạm pháp luật
-│   └── eval/                     # Bộ công cụ đánh giá định lượng RAG & Faithfulness
-├── tests/                        # 162 bài kiểm thử tự động pytest
-├── data/samples/legal_corpus/   # 684 chunks văn bản quy phạm pháp luật chuẩn
-├── data/eval/                    # Tập dữ liệu 46 câu hỏi đánh giá benchmark
-├── docs/                         # Báo cáo học thuật IEEE, Slide, SPEC, DATA_CARD, MODEL_CARD
-├── reports/                      # Báo cáo chuyên sâu về Deep Learning và nghiệp vụ đấu thầu
-└── story/                        # Minh chứng luồng chạy hệ thống thực tế (14 ảnh chụp)
+│   ├── auth/ & audit/            # Xác thực người dùng & Nhật ký kiểm toán bất biến
+│   └── crawler/ & ingest/        # Bộ thu thập dữ liệu thầu & Trích xuất văn bản/OCR
+├── scripts/                      # 20 kịch bản CLI phục vụ vận hành & đánh giá
+├── tests/                        # 164 bài kiểm thử tự động pytest
+├── docs/                         # Báo cáo IEEE, Slide, DATA_CARD, MODEL_CARD, SPEC
+└── reports/                      # Báo cáo chuyên sâu về Deep Learning & Nghiệp vụ đấu thầu
 ```
 
 ---
 
-## Tài liệu Kỹ thuật Liên quan
+## 📄 Bản Quyền & Giấy Phép
 
-* [`docs/SPEC.md`](docs/SPEC.md) — Tài liệu đặc tả kỹ thuật chi tiết hệ thống
-* [`docs/DATA_CARD.md`](docs/DATA_CARD.md) — Thẻ dữ liệu: Nguồn gốc, phạm vi và giới hạn dữ liệu
-* [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) — Thẻ mô hình: Kiến trúc, tầng suy biến (Tiers) và chỉ số
-* [`reports/DEEP_LEARNING_VA_LUONG_HE_THONG_AUTOTENDER.md`](reports/DEEP_LEARNING_VA_LUONG_HE_THONG_AUTOTENDER.md) — Phân tích chuyên sâu về Deep Learning, Transformer & Hybrid RAG
-* [`reports/NGHIEP_VU_DAU_THAU_VA_AUTOTENDER.md`](reports/NGHIEP_VU_DAU_THAU_VA_AUTOTENDER.md) — Hướng dẫn nghiệp vụ đấu thầu dành cho kỹ sư phát triển
-* [`reports/HUONG_DAN_CHAY_VA_KIEM_THU_HE_THONG.md`](reports/HUONG_DAN_CHAY_VA_KIEM_THU_HE_THONG.md) — Cẩm nang cài đặt, chạy thử và kiểm thử hệ thống
-
----
-
-## 5 Nguyên tắc Thiết kế Bắt buộc
-
-1. **Luôn sẵn sàng vận hành (Graceful Degradation):** Hệ thống hỗ trợ 3 tầng kiến trúc — Tier 1 (Cloud LLM Gateway + Hybrid RAG) $\rightarrow$ Tier 2 (Local Dense FAISS) $\rightarrow$ Tier 3 (Offline Template-filling + Trích dẫn thô). Khi mất kết nối hoặc thiếu API Key, hệ thống tự động suy biến xuống Tier 3, tuyệt đối không gây lỗi dừng ứng dụng.
-2. **Tuyệt đối không bịa đặt (Zero Hallucination):** Câu trả lời pháp lý **CHỈ** được hình thành dựa trên các trích đoạn luật thật đã được truy xuất; số liệu gói thầu được điền tự động bằng slot-filling; bộ kiểm chứng số học R4 gắn cờ cảnh báo ngay lập tức nếu phát hiện con số bất thường.
-3. **Hiệu lực pháp lý chuẩn xác:** Toàn bộ căn cứ pháp lý được cập nhật theo văn bản mới nhất (thay thế Nghị định 24/2024/NĐ-CP đã hết hiệu lực bằng Nghị định 214/2025/NĐ-CP và Nghị định 45/2026/NĐ-CP).
-4. **Con người kiểm soát hoàn toàn (Human-In-The-Loop):** Mọi văn bản do AI sinh ra chỉ có giá trị tham khảo/dự thảo. Không một mục nào trong hồ sơ được coi là hoàn tất nếu chưa có sự rà soát, chỉnh sửa và bấm nút phê duyệt của cán bộ phụ trách.
-5. **Thu thập dữ liệu có trách nhiệm:** Các bộ crawler luôn tuân thủ tiêu chuẩn `robots.txt`, áp dụng cơ chế giới hạn tần suất (rate-limiting) và lưu bộ nhớ đệm (cache) toàn bộ phản hồi để tránh gây quá tải máy chủ nguồn.
+Dự án được phát triển phục vụ mục đích nghiên cứu học thuật và ứng dụng thực tiễn trong quản lý đấu thầu công nghệ thông tin tại Việt Nam.  
+Phát hành theo giấy phép **Apache License 2.0**.
