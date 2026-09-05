@@ -184,3 +184,59 @@ def check_document_completeness(sections: list[HSMTSection]) -> list[ComplianceF
                     )
                 )
     return flags
+
+
+def check_it_specific_compliance(sections: list[HSMTSection]) -> list[ComplianceFlag]:
+    """Rà soát chuyên sâu các điều kiện bắt buộc đối với gói thầu Phần mềm và CNTT.
+
+    1. An toàn thông tin mạng theo cấp độ (Nghị định 85/2016/NĐ-CP & Nghị định 73/2019/NĐ-CP):
+       Chương V (Yêu cầu kỹ thuật) phải có yêu cầu về ATTT/bảo mật hệ thống.
+    2. Bàn giao toàn bộ mã nguồn & Sở hữu trí tuệ (Điều 55 Nghị định 73/2019/NĐ-CP):
+       Chương VI hoặc VII (Điều kiện hợp đồng) phải có điều khoản quy định Chủ đầu tư sở hữu
+       mã nguồn (source code) và cơ sở dữ liệu.
+    """
+    present = {s.section_id: s for s in sections}
+    flags: list[ComplianceFlag] = []
+
+    # 1. Rà soát yêu cầu An toàn thông tin trong Chương V
+    tech_sec = present.get("chuong_V.muc_2") or present.get("chuong_V.muc_1")
+    if tech_sec and tech_sec.current_text.strip() and _PLACEHOLDER_MARKER not in tech_sec.current_text:
+        text_lower = tech_sec.current_text.lower()
+        has_security = any(kw in text_lower for kw in ["an toàn thông tin", "cấp độ", "bảo mật", "attt", "owasp", "mã hóa", "tls"])
+        if not has_security:
+            flags.append(
+                ComplianceFlag(
+                    rule_code="R3",
+                    severity="trung_binh",
+                    sentence=tech_sec.current_text[:200],
+                    explanation=(
+                        "Gói thầu phần mềm/CNTT thiếu yêu cầu bắt buộc về bảo đảm An toàn thông tin theo cấp độ "
+                        "(theo Nghị định số 85/2016/NĐ-CP và Điều 5 Nghị định số 73/2019/NĐ-CP)."
+                    ),
+                    evidence=tech_sec.citations,
+                    confidence=0.8,
+                )
+            )
+
+    # 2. Rà soát điều khoản Bàn giao mã nguồn trong Chương VI hoặc VII
+    contract_sec = present.get("chuong_VI.muc_2") or present.get("chuong_VII.muc_2")
+    if contract_sec and contract_sec.current_text.strip() and _PLACEHOLDER_MARKER not in contract_sec.current_text:
+        text_lower = contract_sec.current_text.lower()
+        has_source_code = any(kw in text_lower for kw in ["mã nguồn", "source code", "sở hữu trí tuệ", "quyền tác giả", "cơ sở dữ liệu"])
+        if not has_source_code:
+            flags.append(
+                ComplianceFlag(
+                    rule_code="R3",
+                    severity="cao",
+                    sentence=contract_sec.current_text[:200],
+                    explanation=(
+                        "Thiếu điều khoản bắt buộc về quyền sở hữu trí tuệ và bàn giao toàn bộ mã nguồn (source code), "
+                        "cơ sở dữ liệu cho Chủ đầu tư (theo Điều 55 Nghị định số 73/2019/NĐ-CP)."
+                    ),
+                    evidence=contract_sec.citations,
+                    confidence=0.85,
+                )
+            )
+
+    return flags
+

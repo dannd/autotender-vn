@@ -1,6 +1,11 @@
 from datetime import datetime, timezone
 
-from autotender.models.compliance import REQUIRED_HSMT_COMPONENTS, check_document_completeness, ComplianceModule
+from autotender.models.compliance import (
+    REQUIRED_HSMT_COMPONENTS,
+    check_document_completeness,
+    check_it_specific_compliance,
+    ComplianceModule,
+)
 from autotender.schemas import HSMTSection
 
 
@@ -72,3 +77,25 @@ def test_completeness_flags_r5_for_placeholder_only_section():
     assert len(flags) == 1
     assert flags[0].rule_code == "R5"
     assert sections[0].section_id in flags[0].explanation
+
+
+def test_it_specific_compliance_flags_missing_security_and_source_code():
+    # Trường hợp thiếu cả ATTT và Bàn giao mã nguồn
+    sections = [
+        _section("chuong_V.muc_2", text="Yêu cầu phần mềm cài đặt trên máy chủ nội bộ."),
+        _section("chuong_VI.muc_2", text="Quyền và nghĩa vụ thực hiện theo quy định chung."),
+    ]
+    flags = check_it_specific_compliance(sections)
+    assert len(flags) == 2
+    assert all(f.rule_code == "R3" for f in flags)
+
+
+def test_it_specific_compliance_passes_with_proper_clauses():
+    # Trường hợp có đầy đủ An toàn thông tin và Bàn giao mã nguồn
+    sections = [
+        _section("chuong_V.muc_2", text="Hệ thống đáp ứng yêu cầu An toàn thông tin Cấp độ 3 theo Nghị định 85/2016/NĐ-CP và mã hóa TLS 1.3."),
+        _section("chuong_VI.muc_2", text="Chủ đầu tư sở hữu toàn bộ bản quyền mã nguồn (source code) và cơ sở dữ liệu sau nghiệm thu."),
+    ]
+    flags = check_it_specific_compliance(sections)
+    assert flags == []
+
